@@ -21,6 +21,7 @@ public class AssetsManager
     public static GameObject BreakParticle;
     public static GameObject CoinGet;
     public static GameObject CoinFlash;
+    public static GameObject BlueFlash;
     public static GameObject RevolverBeam;
     public static GameObject Rocket;
 
@@ -92,6 +93,12 @@ public class AssetsManager
             BreakParticle = Addressables
                 .LoadAssetAsync<GameObject>(
                     "Assets/Particles/Breaks/BreakParticle.prefab")
+                .WaitForCompletion();
+
+        if (BlueFlash == null)
+            BlueFlash = Addressables
+                .LoadAssetAsync<GameObject>(
+                    "Assets/Particles/Flashes/V2FlashUnparriable.prefab")
                 .WaitForCompletion();
 
         if (Agony == null)
@@ -190,6 +197,18 @@ public class AssetsManager
                     "Assets/Textures/UI/ArmWhiplash.png")
                 .WaitForCompletion();
 
+    }
+    static Dictionary<string, GameObject> CustomBosses = new Dictionary<string, GameObject>();
+    public static GameObject GetCustomBoss(string name)
+    {
+        if (CustomBosses.TryGetValue(name, out GameObject boss))
+            return boss;
+
+        boss = Addressables.LoadAssetAsync<GameObject>("Assets/Modding/RogueMode/Custom Bosses/" + name).WaitForCompletion();
+
+        CustomBosses.Add(name, boss);
+
+        return boss;
     }
 
     // ── Signals one coroutine finished; flips IsReady when both are done ────

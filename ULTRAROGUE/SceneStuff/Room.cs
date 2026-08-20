@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using ULTRAKILL.Cheats;
 using ULTRAKILL.Portal;
 using ULTRAKILL.Portal.Geometry;
 using Ultrarogue;
@@ -285,6 +286,7 @@ public class Room : MonoBehaviour
 
     IEnumerator SpawnEnemies()
     {
+        if (DisableEnemySpawns.DisableArenaTriggers) SpawnCredits = 0;
         if (SpawnCredits == 0) yield break;
         CloseOffRoom();
         playerHealthAtFightStart = MonoSingleton<NewMovement>.Instance.hp;
@@ -582,90 +584,121 @@ public class Room : MonoBehaviour
         CloseOffRoom();
         yield return new WaitForSeconds(0.5f);
         isFighting = true;
-        if (bossEnemyType == null)
+
+        bool doubleBoss = CurseManager.HasCurse("Curse of The Mountain");
+        int bossSpawnCount = doubleBoss ? 2 : 1;
+
+        if (doubleBoss)
+            Plugin.Logger.LogInfo("[Room] Curse of The Mountain active — spawning 2 bosses.");
+
+        for (int bossIndex = 0; bossIndex < bossSpawnCount; bossIndex++)
         {
-            try
+            BossPick thisBoss = bossEnemyType;
+
+            // For the second boss, grab a fresh pick so it's not literally the same boss twice
+            // (falls back to bossEnemyType if GetBoss fails or isn't meant to reroll).
+            if (doubleBoss && bossIndex > 0)
             {
-                bossEnemyType = RogueDifficultyManager.Instance.GetBoss();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"GetBoss failed: {e}");
-            }
-        }
-        if (bossEnemyType == null || bossEnemyType.waves == null || bossEnemyType.waves.Count == 0)
-        {
-            Debug.LogError("[Room] BossPick has no waves defined.");
-            yield break;
-        }
-
-        for (int w = 0; w < bossEnemyType.waves.Count; w++)
-        {
-            Debug.Log($"[Room] Starting Boss Wave {w + 1}/{bossEnemyType.waves.Count}");
-            List<BossEntry> currentWave = bossEnemyType.waves[w];
-            List<EnemyIdentifier> waveEnemies = new List<EnemyIdentifier>();
-
-            foreach (BossEntry bossEntry in currentWave)
-            {
-                if (bossEntry.prefab == null) continue;
-
-                Vector3 spawnPos = transform.position + Vector3.up * 1f + new Vector3(UnityEngine.Random.Range(-4f, 4f), 0f, UnityEngine.Random.Range(-4f, 4f));
-                GameObject bossInst = Instantiate(bossEntry.prefab, spawnPos, bossEntry.prefab.transform.rotation);
-                bossInst.transform.parent = transform;
-
-                EnemyIdentifier eid = bossInst.GetComponent<EnemyIdentifier>() ?? bossInst.GetComponentInChildren<EnemyIdentifier>();
-
-                if (eid != null)
+                try
                 {
-                    waveEnemies.Add(eid);
-                    float totalHealth = eid.health;
-                    if (bossEntry.healthMod != 0 || bossEntry.healthPerFloorMod != 0 || bossEntry.healthAddition != 0)
-                    {
-                        Enemy e = FindEnemyComponent(bossInst);
-                        if (bossEntry.healthMod == 0) bossEntry.healthMod = eid.health;
-                        int floorsActive = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
-                        totalHealth = bossEntry.healthMod + bossEntry.healthAddition + bossEntry.healthPerFloorMod * floorsActive;
-                        eid.health = totalHealth;
-                        e.health = totalHealth;
-                        e.originalHealth = totalHealth;
-                    }
-
-                    int floorsForRadiance = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
-                    int totalRadiance = bossEntry.radianceBuffs
-                        + Mathf.FloorToInt(bossEntry.radianceBuffsPerFloor * floorsForRadiance);
-
-                    for (int r = 0; r < totalRadiance; r++)
-                        eid.BuffAll();
-
-                    if (totalRadiance > 0)
-                        Debug.Log($"[Room] Applied {totalRadiance} radiance buff(s) to {eid.enemyType}.");
-
-                    bossEnemyType.onSpawn?.Invoke(eid);
-                    if (eid.gameObject.GetComponent<BossHealthBar>() != null)
-                        Destroy(eid.gameObject.GetComponent<BossHealthBar>());
-                    eid.gameObject.AddComponent<BossHealthBar>();
-                    SetHalfHealth(totalHealth / 2, eid);
-                    if (eid.enemyType == EnemyType.Gabriel || eid.enemyType == EnemyType.GabrielSecond)
-                    {
-                        eid.onDeath.AddListener(() =>
-                        {
-                            Destroy(bossInst);
-                        });
-                    }
-
-
+                    thisBoss = RogueDifficultyManager.Instance.GetBoss();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"GetBoss failed on second Curse of The Mountain boss: {e}");
+                    thisBoss = bossEnemyType;
                 }
             }
 
-            bool waveAlive = true;
-            while (waveAlive)
+            if (thisBoss == null)
             {
-                yield return new WaitForSeconds(0.15f);
-                waveAlive = waveEnemies.Any(e => e != null && !e.dead);
+                try
+                {
+                    thisBoss = RogueDifficultyManager.Instance.GetBoss();
+                    if (bossIndex == 0) bossEnemyType = thisBoss;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"GetBoss failed: {e}");
+                }
             }
 
-            if (w < bossEnemyType.waves.Count - 1)
-                yield return new WaitForSeconds(0.25f);
+            if (thisBoss == null || thisBoss.waves == null || thisBoss.waves.Count == 0)
+            {
+                Debug.LogError("[Room] BossPick has no waves defined.");
+                continue;
+            }
+
+            for (int w = 0; w < thisBoss.waves.Count; w++)
+            {
+                Debug.Log($"[Room] Starting Boss Wave {w + 1}/{thisBoss.waves.Count}" + (doubleBoss ? $" (boss {bossIndex + 1}/{bossSpawnCount})" : ""));
+                List<BossEntry> currentWave = thisBoss.waves[w];
+                List<EnemyIdentifier> waveEnemies = new List<EnemyIdentifier>();
+
+                foreach (BossEntry bossEntry in currentWave)
+                {
+                    if (bossEntry.prefab == null) continue;
+
+                    Vector3 spawnPos = transform.position + Vector3.up * 2f + new Vector3(UnityEngine.Random.Range(-4f, 4f), 0f, UnityEngine.Random.Range(-4f, 4f));
+                    spawnPos += bossEntry.offset;
+                    GameObject bossInst = Instantiate(bossEntry.prefab, spawnPos, bossEntry.prefab.transform.rotation);
+                    bossInst.transform.parent = transform;
+
+                    EnemyIdentifier eid = bossInst.GetComponent<EnemyIdentifier>() ?? bossInst.GetComponentInChildren<EnemyIdentifier>();
+
+                    if (eid != null)
+                    {
+                        waveEnemies.Add(eid);
+                        float totalHealth = eid.health;
+                        if (bossEntry.healthMod != 0 || bossEntry.healthPerFloorMod != 0 || bossEntry.healthAddition != 0)
+                        {
+                            Enemy e = FindEnemyComponent(bossInst);
+                            if (bossEntry.healthMod == 0) bossEntry.healthMod = eid.health;
+                            int floorsActive = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
+                            totalHealth = bossEntry.healthMod + bossEntry.healthAddition + bossEntry.healthPerFloorMod * floorsActive;
+                            eid.health = totalHealth;
+                            e.health = totalHealth;
+                            e.originalHealth = totalHealth;
+                        }
+
+                        int floorsForRadiance = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
+                        int totalRadiance = bossEntry.radianceBuffs
+                            + Mathf.FloorToInt(bossEntry.radianceBuffsPerFloor * floorsForRadiance);
+
+                        for (int r = 0; r < totalRadiance; r++)
+                            eid.BuffAll();
+
+                        if (totalRadiance > 0)
+                            Debug.Log($"[Room] Applied {totalRadiance} radiance buff(s) to {eid.enemyType}.");
+
+                        thisBoss.onSpawn?.Invoke(eid);
+                        if (eid.gameObject.GetComponent<BossHealthBar>() != null)
+                            Destroy(eid.gameObject.GetComponent<BossHealthBar>());
+                        eid.gameObject.AddComponent<BossHealthBar>();
+                        SetHalfHealth(totalHealth / 2, eid);
+                        if (eid.enemyType == EnemyType.Gabriel || eid.enemyType == EnemyType.GabrielSecond)
+                        {
+                            eid.onDeath.AddListener(() =>
+                            {
+                                Destroy(bossInst);
+                            });
+                        }
+                    }
+                }
+
+                bool waveAlive = true;
+                while (waveAlive)
+                {
+                    yield return new WaitForSeconds(0.15f);
+                    waveAlive = waveEnemies.Any(e => e != null && !e.dead);
+                }
+
+                if (w < thisBoss.waves.Count - 1)
+                    yield return new WaitForSeconds(0.25f);
+            }
+
+            if (doubleBoss && bossIndex < bossSpawnCount - 1)
+                yield return new WaitForSeconds(0.5f);
         }
 
         hasSpawnedEnemies = true;
@@ -713,8 +746,12 @@ public class Room : MonoBehaviour
             if (roomType == RoomType.Normal || roomType == RoomType.Boss || roomType == RoomType.Start || roomType == RoomType.ChallengeRoom) return;
             if (RogueDifficultyManager.Instance.floor == 1) return;
             if (Random.value <= 0.75f && Plugin.CurrentDifficulty != 2) return;
-            door.GetComponentInChildren<Door>().gameObject.AddComponent<Lockable>();
-        }
+
+            if(door.GetComponent<Door>())
+                door.AddComponent<Lockable>(); 
+            else
+                door.GetComponentInChildren<Door>().gameObject.AddComponent<Lockable>();
+         }
 
     }
 

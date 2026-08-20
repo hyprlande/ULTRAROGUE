@@ -289,8 +289,8 @@ public class RogueDifficultyManager : MonoBehaviour
         }
 
         Difficulty += (Time.deltaTime / 180) * difficultyScaleMult;
-        goldText.text = "Gold: " + Gold;
-        keyText.text = "Keys: " + Keys;
+        goldText.text = Gold.ToString();
+        keyText.text = Keys.ToString();
         UpdateStatsUI();
     }
 
@@ -354,6 +354,12 @@ public class RogueDifficultyManager : MonoBehaviour
                     healthMod: 42),
             }));
 
+            options.Add(new BossPick(new List<BossEntry>()
+            {
+                new BossEntry(AssetsManager.GetCustomBoss("FilthBall.prefab"),
+                    healthMod: 52, offset: Vector3.up * 5),
+            }));
+
                 options.Add(new BossPick(new List<BossEntry>()
             {
                 new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.VeryCancerousRodent)[0].gameObject,
@@ -363,7 +369,7 @@ public class RogueDifficultyManager : MonoBehaviour
                 options.Add(new BossPick(new List<BossEntry>()
             {
                 new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.Swordsmachine)[0].gameObject,
-                    healthAddition: 20),
+                    healthAddition: 25),
             }));
                 options.Add(new BossPick(new List<BossEntry>()
             {
@@ -651,9 +657,10 @@ public class BossEntry
     public int startFloor;
     public int radianceBuffs;
     public float radianceBuffsPerFloor; // fractional — floors past startFloor accumulate this
+    public Vector3 offset;
 
-    public BossEntry(GameObject prefab, float healthMod = 0, float healthAddition = 0, float healthPerFloorMod = 0,
-                     int startFloor = 0, int radianceBuffs = 0, float radianceBuffsPerFloor = 0f)
+    public BossEntry(GameObject prefab, Vector3? offset = null, float healthMod = 0, float healthAddition = 0, float healthPerFloorMod = 0,
+                 int startFloor = 0, int radianceBuffs = 0, float radianceBuffsPerFloor = 0f)
     {
         this.prefab = prefab;
         this.healthMod = healthMod;
@@ -662,6 +669,7 @@ public class BossEntry
         this.startFloor = startFloor;
         this.radianceBuffs = radianceBuffs;
         this.radianceBuffsPerFloor = radianceBuffsPerFloor;
+        this.offset = offset ?? Vector3.zero;
     }
 }
 

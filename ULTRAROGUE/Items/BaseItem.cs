@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using Ultrarogue.Curses;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -103,6 +104,8 @@ namespace Ultrarogue.Items
             {
                 var assembly = Assembly.GetExecutingAssembly();
                 string resourceName = $"Ultrarogue.ItemIcons.{ItemIconName}.png";
+                if (CurseManager.HasCurse("Curse of The Blind"))
+                    resourceName = "Ultrarogue.ItemIcons.Unknown.png";
 
                 using (Stream stream = assembly.GetManifestResourceStream(resourceName))
                 {

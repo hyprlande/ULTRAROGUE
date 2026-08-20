@@ -494,6 +494,13 @@ namespace Ultrarogue
         void Update()
         {
             if (!isInRogueScene()) return;
+
+            if (Input.GetKeyDown(KeyCode.X))
+            {
+                GameObject filthy = AssetsManager.GetCustomBoss("FilthBall.prefab");
+
+                Instantiate(filthy, NewMovement.Instance.transform.position, Quaternion.identity);
+            }
             /*
             if (Input.GetKeyDown(KeyCode.X))
             {
@@ -2048,6 +2055,8 @@ namespace Ultrarogue
                 hitEffect.effect.Invoke(__instance.eid, multiplier);
             }
 
+            if (__instance.TryGetComponent<HitEffectTriggerer>(out var hit)) hit.OnGottenHit(multiplier); 
+
         }
         [HarmonyPatch(typeof(Drone), nameof(Drone.GetHurt))]
         [HarmonyPrefix]
@@ -2240,7 +2249,6 @@ namespace Ultrarogue
 
                 List<Node> list = new List<Node>();
 
-                // Add the "addall" leaf first
                 list.Add(CommandRoot.Leaf("addall", delegate ()
                 {
                     foreach (var item in Plugin.nameToItem)
@@ -2250,7 +2258,6 @@ namespace Ultrarogue
                     Log.Info($"Gave all the items, item count: {Plugin.nameToItem.Count}");
                 }, true));
 
-                // Then add all item leaves
                 foreach (var item in Plugin.nameToItem)
                 {
                     list.Add(CommandRoot.Leaf("add_" + item.Value.ItemName.Replace(" ", "_"), () =>
@@ -2260,7 +2267,6 @@ namespace Ultrarogue
                     }, true));
                 }
 
-                // Remove commands
                 list.Add(CommandRoot.Leaf("removeall", delegate ()
                 {
                     foreach (var item in Plugin.items.Keys.ToList())
@@ -2277,7 +2283,6 @@ namespace Ultrarogue
                     }, true));
                 }
 
-                // Now build the branch with the complete array
                 GameConsole.CommandTree.Branch br = CommandRoot.Branch("items", list.ToArray());
 
                 array[0] = br;
@@ -2311,7 +2316,6 @@ namespace Ultrarogue
                     }, true));
                 }
 
-                // Now build the branch with the complete array
                 GameConsole.CommandTree.Branch brC = CommandRoot.Branch("curses", listC.ToArray());
                 array[2] = brC;
 
@@ -2428,6 +2432,12 @@ namespace Ultrarogue
         public string itemName;
         public Action<GameObject, ProjectileType, GameObject> effect;
 
+        /// <summary>
+        /// First gameobject = Projectile
+        /// Second gameobject = collision
+        /// </summary>
+        /// <param name="itemName"></param>
+        /// <param name="effect"></param>
         public ProjectileCollideEffect(string itemName, Action<GameObject, ProjectileType, GameObject> effect)
         {
             this.itemName = itemName;

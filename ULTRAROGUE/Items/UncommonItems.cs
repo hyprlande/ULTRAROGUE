@@ -485,53 +485,130 @@ namespace Ultrarogue.Items
         const float BaseChance = 5f;
         const float ChancePerStack = 2f;
         const int RocketCount = 3;
+        const float ChanceReduction = 2f;
 
         public override string ItemName => "Chain Rocket";
+
+        public override string itemDescription =>
+            $"When hitting an enemy with a rocket, have a {BaseChance}% (+{ChancePerStack}% per stack) chance to fire 3 rockets towards the nearest enemy. Each duplication reduces the chance by {ChanceReduction}%.";
+
         public override Rarity Rarity => Rarity.Uncommon;
+
+        public class ChainRocketData : MonoBehaviour
+        {
+            public int duplicationLevel = 0;
+        }
 
         public override void OnStart()
         {
             base.OnStart();
+
             new ProjectileCollideEffect(ItemName, (proj, type, other) =>
             {
-                if (type != ProjectileType.Rocket) return;
+                if (type != ProjectileType.Rocket)
+                    return;
+
                 int c = Plugin.GetItemCount(this);
-                if (c <= 0) return;
+
+                if (c <= 0)
+                    return;
 
                 EnemyIdentifier eid;
-                if (!Plugin.TryGetEnemy(other, out eid)) return;
 
-                if (Plugin.canExecute(BaseChance + (ChancePerStack * c - 1), eid.hitter))
+                if (!Plugin.TryGetEnemy(other, out eid))
+                    return;
+
+                int duplicationLevel = 0;
+
+                if (proj != null)
+                {
+                    ChainRocketData data = proj.GetComponent<ChainRocketData>();
+
+                    if (data != null)
+                        duplicationLevel = data.duplicationLevel;
+                }
+
+                float chance =
+                    BaseChance +
+                    (ChancePerStack * (c - 1)) -
+                    (ChanceReduction * duplicationLevel);
+
+                chance = Mathf.Max(0f, chance);
+
+                if (Plugin.canExecute(chance, eid.hitter))
                 {
                     for (int i = 0; i < RocketCount; i++)
                     {
-                        StartCoroutine(SpawnRocket(eid, 0.15f * i));
-                        
+                        StartCoroutine(
+                            SpawnRocket(
+                                eid,
+                                0.15f * i,
+                                duplicationLevel
+                            )
+                        );
                     }
-
                 }
             });
         }
 
-        IEnumerator SpawnRocket(EnemyIdentifier eid, float delay)
+        IEnumerator SpawnRocket(
+            EnemyIdentifier eid,
+            float delay,
+            int parentDuplicationLevel)
         {
             yield return new WaitForSeconds(delay);
-            List<EnemyIdentifier> eids = EnemyTracker.Instance.GetCurrentEnemies();
+
+            List<EnemyIdentifier> eids =
+                EnemyTracker.Instance.GetCurrentEnemies();
+
             eids.RemoveAll((x) => x == eid);
-            if (eids.Count <= 0) yield break;
 
-            EnemyIdentifier target = eids[Random.Range(0, eids.Count)];
-            Transform targetTransform = target.weakPoint ? target.weakPoint.transform : target.transform;
-            Transform spawnPos = eid.weakPoint ? eid.weakPoint.transform : eid.transform;
+            if (eids.Count <= 0)
+                yield break;
 
-            GameObject rocketObj = Object.Instantiate(AssetsManager.Rocket, spawnPos.position, Quaternion.identity);
-            rocketObj.transform.forward = (targetTransform.position - rocketObj.transform.position).normalized;
-            Collider rocketCol = rocketObj.GetComponent<Collider>();
+            EnemyIdentifier target =
+                eids[Random.Range(0, eids.Count)];
+
+            Transform targetTransform =
+                target.weakPoint
+                    ? target.weakPoint.transform
+                    : target.transform;
+
+            Transform spawnPos =
+                eid.weakPoint
+                    ? eid.weakPoint.transform
+                    : eid.transform;
+
+            GameObject rocketObj = Object.Instantiate(
+                AssetsManager.Rocket,
+                spawnPos.position,
+                Quaternion.identity
+            );
+
+            rocketObj.name += "dupe";
+            ChainRocketData data =
+                rocketObj.AddComponent<ChainRocketData>();
+
+            data.duplicationLevel =
+                parentDuplicationLevel + 1;
+
+            rocketObj.transform.forward =
+                (targetTransform.position -
+                 rocketObj.transform.position).normalized;
+
+            Collider rocketCol =
+                rocketObj.GetComponent<Collider>();
+
             if (rocketCol != null)
             {
-                foreach (Collider enemyCol in eid.GetComponentsInChildren<Collider>())
+                foreach (Collider enemyCol in
+                    eid.GetComponentsInChildren<Collider>())
                 {
-                    Physics.IgnoreCollision(rocketCol, enemyCol, true);
+                    Physics.IgnoreCollision(
+                        rocketCol,
+                        enemyCol,
+                        true
+                    );
                 }
             }
         }

@@ -582,6 +582,130 @@ namespace Ultrarogue.Items
         }
     }
 
+    public class Knife : BaseItem
+    {
+        const float chance = 5f;
+        const float bleedDamage = 0.25f;
+        const float bleedInterval = 1f;
+
+        public override string ItemName => "Knife";
+
+        public override string itemDescription =>
+            $"{chance}% (+{chance}% per stack) to turn a projectile into a knife, " +
+            $"Knives embed into enemies and makes them bleed.";
+
+        private readonly Dictionary<EnemyIdentifier, int> bleedingEnemies = new();
+
+        GameObject _knife;
+        GameObject GetKnife()
+        {
+            if(_knife == null)
+            {
+                _knife = Addressables.LoadAssetAsync<GameObject>("Assets/Modding/RogueMode/KnifeProjectile.prefab").WaitForCompletion();
+            }
+
+            return _knife;
+        }
+
+
+        public override void OnStart()
+        {
+            new ProjectileStartEffect(ItemName, (obj, type) =>
+            {
+                int c = Plugin.GetItemCount(ItemName);
+                if (c <= 0) return;
+
+                if (type == ProjectileType.Projectile)
+                {
+                    Projectile proj = obj.GetComponent<Projectile>();
+
+                    if (proj == null) return;
+                    if (!proj.playerBullet) return;
+
+                    float theChance = chance * c;
+
+                    if (Plugin.canExecute(theChance, ""))
+                    {
+                        obj.AddComponent<KnifeProjectile>();
+
+                        obj.GetComponent<MeshRenderer>().enabled = false;
+
+                        GameObject nife = Object.Instantiate(GetKnife(), obj.transform.position, Quaternion.identity);
+
+                        nife.transform.parent = obj.transform;
+                        nife.transform.localRotation = Quaternion.identity;
+                    }
+                        
+                }
+            });
+
+            new ProjectileCollideEffect(ItemName, (proj, type, other) =>
+            {
+                if (!proj.TryGetComponent<KnifeProjectile>(out var knife))
+                    return;
+                GameObject enemy = other.gameObject;
+
+                if (enemy == null)
+                    return;
+                if(Plugin.TryGetEnemy(other, out var e))
+                {
+
+                    GameObject nife = Object.Instantiate(GetKnife(), proj.transform.position, Quaternion.identity);
+                    nife.transform.parent = other.transform;
+                }
+                StartBleeding(enemy);
+            });
+        }
+         
+        private void StartBleeding(GameObject enemy)
+        {
+            if (!Plugin.TryGetEnemy(enemy, out var eid))
+                return;
+
+            if (bleedingEnemies.ContainsKey(eid))
+            {
+                bleedingEnemies[eid]++;
+                return;
+            }
+
+            bleedingEnemies.Add(eid, 1);
+
+            Plugin.Instance.StartCoroutine(BleedEnemy(eid));
+        }
+
+        private IEnumerator BleedEnemy(EnemyIdentifier enemy)
+        {
+            while (enemy != null && bleedingEnemies.ContainsKey(enemy) && !enemy.dead)
+            {
+                int knifeCount = bleedingEnemies[enemy];
+
+                float interval = bleedInterval / knifeCount;
+
+                enemy.DeliverDamage(
+                    enemy.gameObject,
+                    Vector3.zero,
+                    enemy.transform.position,
+                    bleedDamage,
+                    false
+                );
+
+                yield return new WaitForSeconds(interval);
+            }
+
+            bleedingEnemies.Remove(enemy);
+        }
+
+        public override void OnUpdate(int count)
+        {
+            base.OnUpdate(count);
+        }
+
+        public class KnifeProjectile : MonoBehaviour
+        {
+
+        }
+    }
+
     public class Test : ActiveItem
     {
         const float DamageBonus = 0.50f;
