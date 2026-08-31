@@ -48,7 +48,8 @@ public static class SceneLoader
         "Pressing tab shows a minimap, your stats, and your items.",
         "Sometimes special rooms are locked and require a key to be opened",
         "Gamble rooms only spawn on even floors when having enough gold",
-        "Sometimes skipping treasure rooms can be a good idea"
+        "Sometimes skipping treasure rooms can be a good idea",
+        "Layer themes switch every 5 floors"
     };
 
     public static Dictionary<SteamId, string[]> customMessagesForYoutubers = new Dictionary<SteamId, string[]>()
@@ -56,8 +57,9 @@ public static class SceneLoader
         // Linguini / Lasguini
         { 76561199195414858L, new string[] {
             "Hi linguini, (and maybe lasagna)",
-            "Where are my goddamnt cookies?",
-            "you probably dont need items."
+            "you probably dont need items.",
+            "Noibta",
+            "bulktrall"
         }},
         
         // Gronf
@@ -65,7 +67,7 @@ public static class SceneLoader
             "Bronf",
             "Cronf",
             "Shlonf",
-            "Splonf"
+            "Splonf",
         }},
         
         // TondarYZD
@@ -76,7 +78,8 @@ public static class SceneLoader
             "tond tond tond yzdur",
             "toenail",
             "tondler",
-            "johndar"
+            "johndar",
+            "I am putting this one message here for the low chance for you to see it. I mean its a 25% chance for custom messages to show up and then it chooses a random message so it would be a... wait lemme google. 3% apparently, thats epic"
         }},
         
         // Ineophobe
@@ -100,8 +103,6 @@ public static class SceneLoader
         { 76561198869892477L, new string[]
         {
             "I am inside your walls (malicious intent)",
-            "I know who you are",
-            "Very cool games. You make :D"
         }}
     };
 

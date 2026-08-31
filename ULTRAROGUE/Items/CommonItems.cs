@@ -9,6 +9,7 @@ using ULTRAKILL.Portal.Native;
 using Ultrarogue.Characters;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.InputSystem.HID;
 using UnityEngine.UIElements;
 
 namespace Ultrarogue.Items
@@ -36,6 +37,111 @@ namespace Ultrarogue.Items
         public override void OnRemoval()
         {
             atkSpeedChange.percentage = 0;
+        }
+    }
+
+    public class HeavyPlating : BaseItem
+    {
+        const int HealthIncrease = 15;
+        const float speedDecrease = 0.35f;
+
+        public override string ItemName => "Heavy Plating";
+        public override string itemDescription => $"+{HealthIncrease} health, -{speedDecrease * 100}% speed.";
+
+        public override List<ItemTag> itemTags => new List<ItemTag>() { ItemTag.MaxHealth, ItemTag.Health };
+
+        Change speed;
+        Change hp;
+
+
+        public override void OnStart()
+        {
+            base.OnStart();
+            speed = new Change();
+            hp = new Change();
+            new PlayerChange(speed, maxHealth: hp);
+        }
+
+        public override void OnUpdate(int count)
+        {
+            base.OnUpdate(count);
+            speed.percentage = speedDecrease * count * -1;
+            hp.addition = count * HealthIncrease;
+        }
+    }
+    public class ExperimentalChip : BaseItem
+    {
+        const float increaseAndDecrease = 0.20f;
+
+        public override string ItemName => "Experimental Chip";
+        public override string itemDescription =>
+            $"Increase 2 random stats by {increaseAndDecrease * 100}% and decrease 1 random stat by {increaseAndDecrease * 100}%";
+
+        PlayerChange plrChanges;
+
+        public override void OnStart()
+        {
+            plrChanges = new PlayerChange();
+        }
+
+        public override void OnGotten(int count, bool firstPickup)
+        {
+            if (NewMovement.Instance == null) return;
+
+            var stats = new List<string>
+            {
+                "MS",
+                "AS",
+                "D",
+                "C"
+            };
+
+            for (int i = 0; i < stats.Count; i++)
+            {
+                int randomIndex = Random.Range(i, stats.Count);
+                (stats[i], stats[randomIndex]) = (stats[randomIndex], stats[i]);
+            }
+
+            ApplyChange(stats[0], increaseAndDecrease);
+            ApplyChange(stats[1], increaseAndDecrease);
+
+            ApplyChange(stats[2], -increaseAndDecrease);
+        }
+
+        void ApplyChange(string stat, float amount)
+        {
+            Change change = GetChange(stat);
+
+            change.multiplier += amount;
+        }
+
+        Change GetChange(string stat)
+        {
+            switch (stat)
+            {
+                case "MS":
+                    return plrChanges.moveSpeed;
+
+                case "AS":
+                    return plrChanges.attackSpeed;
+
+                case "D":
+                    return plrChanges.globalDamageMult;
+
+                case "C":
+                    return plrChanges.cooldownRed;
+
+                default:
+                    return plrChanges.moveSpeed;
+            }
+        }
+
+        public override void OnRemoval()
+        {
+            plrChanges.moveSpeed = new Change();
+            plrChanges.attackSpeed = new Change();
+            plrChanges.globalDamageMult = new Change();
+            plrChanges.cooldownRed = new Change();
         }
     }
 
@@ -594,8 +700,6 @@ namespace Ultrarogue.Items
             $"{chance}% (+{chance}% per stack) to turn a projectile into a knife, " +
             $"Knives embed into enemies and makes them bleed.";
 
-        private readonly Dictionary<EnemyIdentifier, int> bleedingEnemies = new();
-
         GameObject _knife;
         GameObject GetKnife()
         {
@@ -652,54 +756,65 @@ namespace Ultrarogue.Items
 
                     GameObject nife = Object.Instantiate(GetKnife(), proj.transform.position, Quaternion.identity);
                     nife.transform.parent = other.transform;
+                    nife.AddComponent<TheKnife>().eid = e;
+
+                    if(proj.TryGetComponent<Projectile>(out var p))
+                    {
+                        e.hitter = "STAB";
+                        e.DeliverDamage(
+                            e.gameObject,
+                            Vector3.zero,
+                            proj.transform.position,
+                            p.damage * 0.75f,
+                            false
+                        );
+                    }
                 }
-                StartBleeding(enemy);
             });
         }
-         
-        private void StartBleeding(GameObject enemy)
-        {
-            if (!Plugin.TryGetEnemy(enemy, out var eid))
-                return;
-
-            if (bleedingEnemies.ContainsKey(eid))
-            {
-                bleedingEnemies[eid]++;
-                return;
-            }
-
-            bleedingEnemies.Add(eid, 1);
-
-            Plugin.Instance.StartCoroutine(BleedEnemy(eid));
-        }
-
-        private IEnumerator BleedEnemy(EnemyIdentifier enemy)
-        {
-            while (enemy != null && bleedingEnemies.ContainsKey(enemy) && !enemy.dead)
-            {
-                int knifeCount = bleedingEnemies[enemy];
-
-                float interval = bleedInterval / knifeCount;
-
-                enemy.DeliverDamage(
-                    enemy.gameObject,
-                    Vector3.zero,
-                    enemy.transform.position,
-                    bleedDamage,
-                    false
-                );
-
-                yield return new WaitForSeconds(interval);
-            }
-
-            bleedingEnemies.Remove(enemy);
-        }
-
         public override void OnUpdate(int count)
         {
             base.OnUpdate(count);
         }
 
+        public class TheKnife : MonoBehaviour
+        {
+            public EnemyIdentifier eid;
+            float t;
+            float destroyT = 5f;
+            void Awake()
+            {
+                GetComponent<AudioSource>().Play();
+            }
+
+            void Update()
+            {
+                if(eid == null)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+                t += Time.deltaTime;
+                destroyT -= Time.deltaTime;
+                if(destroyT <= 0 || eid.dead )
+                {
+                    Destroy(gameObject);
+                }
+                if(t >= bleedInterval)
+                {
+                    t = 0;
+                    eid.hitter = "Bleed";
+                    eid.DeliverDamage(
+                        eid.gameObject,
+                        Vector3.zero,
+                        transform.position,
+                        bleedDamage,
+                        false
+                    );
+                }
+                
+            }
+        }
         public class KnifeProjectile : MonoBehaviour
         {
 

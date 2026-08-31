@@ -34,6 +34,11 @@ namespace Ultrarogue.Items
         }
         public virtual bool CanOnlyHaveOne => false;
 
+        public virtual bool CanSpawn()
+        {
+            return true;
+        }
+
         public virtual Material materialOverride => null;
         public virtual void OnMaterialApply(Material mat)
         {
@@ -104,8 +109,6 @@ namespace Ultrarogue.Items
             {
                 var assembly = Assembly.GetExecutingAssembly();
                 string resourceName = $"Ultrarogue.ItemIcons.{ItemIconName}.png";
-                if (CurseManager.HasCurse("Curse of The Blind"))
-                    resourceName = "Ultrarogue.ItemIcons.Unknown.png";
 
                 using (Stream stream = assembly.GetManifestResourceStream(resourceName))
                 {

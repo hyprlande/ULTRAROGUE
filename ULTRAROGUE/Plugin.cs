@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using TMPro;
 using ULTRAKILL.Enemy;
+using Ultrarogue.Behaviours;
 using Ultrarogue.Characters;
 using Ultrarogue.Curses;
 using Ultrarogue.Items;
@@ -816,6 +817,8 @@ namespace Ultrarogue
                 ) && (
                     !x.RequiresAtleastOneWeapon ||
                     weapons.Any()
+                ) && ( 
+                    x.CanSpawn()
                 )
             ).ToList();
         }
@@ -1155,6 +1158,7 @@ namespace Ultrarogue
             {"shotgun", 0.25f },
             {"railcannon", 0.8f },
             {"drill", 0.25f },
+            {"Bleed", 0.05f },
         };
 
         public static float getChanceVal(
@@ -2023,6 +2027,12 @@ namespace Ultrarogue
         {
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
+
+            if(__instance.eid.TryGetComponent<BossArmor>(out var arm))
+            {
+                multiplier = arm.CalculateDamage(multiplier);
+            }
+
             foreach (var hitEffect in Plugin.hitEffects)
             {
                 if (!hitEffect.runBeforeDamageCalc) continue;
@@ -2064,6 +2074,10 @@ namespace Ultrarogue
         {
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
+            if (__instance.eid.TryGetComponent<BossArmor>(out var arm))
+            {
+                multiplier = arm.CalculateDamage(multiplier);
+            }
             Weapon weaponUsed = Plugin.HitterToWeapon(__instance.eid.hitter);
             if (Plugin.damageMultipliers.ContainsKey(weaponUsed))
                 multiplier = Plugin.damageMultipliers[weaponUsed].CalculateChanges(multiplier);

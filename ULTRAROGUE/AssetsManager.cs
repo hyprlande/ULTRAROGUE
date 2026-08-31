@@ -46,6 +46,7 @@ public class AssetsManager
     public static GameObject zapThingy;
     public static GameObject spawnEffect;
     public static GameObject healingEffect;
+    public static GameObject nail;
     public static AudioClip StalkerWarning;
     public static AudioClip FilthAttack;
 
@@ -117,6 +118,12 @@ public class AssetsManager
             Rocket = Addressables
                 .LoadAssetAsync<GameObject>(
                     "Assets/Prefabs/Attacks and Projectiles/Rocket.prefab")
+                .WaitForCompletion();
+
+        if (nail == null)
+            nail = Addressables
+                .LoadAssetAsync<GameObject>(
+                    "Assets/Prefabs/Attacks and Projectiles/Nails/Nail.prefab")
                 .WaitForCompletion();
 
         if (CoinGet == null)
@@ -468,6 +475,8 @@ public class AssetsManager
         }
         return _alchemyMat;
     }
+
+    public const string RoguePath = "Assets/Modding/RogueMode/";
 
     // ── Convenience: get all enemies of a specific type ──────────────────────
     public static List<SpawnableObject> GetEnemiesOfType(EnemyType type)

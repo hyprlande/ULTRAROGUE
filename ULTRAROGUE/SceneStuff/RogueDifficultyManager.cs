@@ -478,7 +478,11 @@ public class RogueDifficultyManager : MonoBehaviour
             }));
                 break;
 
-            default:
+            case 10:
+            case 11:
+            case 12:
+            case 13:
+            case 14:
                 options.Add(new BossPick(new List<BossEntry>()
             {
                 new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.MinosPrime)[0].gameObject,
@@ -505,6 +509,20 @@ public class RogueDifficultyManager : MonoBehaviour
                 new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.MaliciousFace)[0].gameObject,
                     healthMod: 95, healthPerFloorMod: 60, startFloor: 8,
                     radianceBuffs: 0, radianceBuffsPerFloor: 0.751f),
+            }));
+                break;
+            default:
+                options.Add(new BossPick(new List<BossEntry>()
+            {
+                new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.MinosPrime)[0].gameObject,
+                    healthMod: 580, radianceBuffs: 2, healthPerFloorMod: 18, startFloor: 14,
+                    radianceBuffsPerFloor: 0.45f, bossArmor: 0.25f, bossArmorPerFloor: 0.075f),
+            }));
+                options.Add(new BossPick(new List<BossEntry>()
+            {
+                new BossEntry(AssetsManager.GetEnemiesOfType(EnemyType.SisyphusPrime)[0].gameObject,
+                    healthMod: 520, healthPerFloorMod: 28, startFloor: 14,
+                    radianceBuffs: 1, radianceBuffsPerFloor: 0.35f, bossArmor: 0.15f, bossArmorPerFloor: 0.05f),
             }));
                 break;
         }
@@ -658,9 +676,11 @@ public class BossEntry
     public int radianceBuffs;
     public float radianceBuffsPerFloor; // fractional — floors past startFloor accumulate this
     public Vector3 offset;
+    public float bossArmor;
+    public float bossArmorPerFloor;
 
     public BossEntry(GameObject prefab, Vector3? offset = null, float healthMod = 0, float healthAddition = 0, float healthPerFloorMod = 0,
-                 int startFloor = 0, int radianceBuffs = 0, float radianceBuffsPerFloor = 0f)
+                 int startFloor = 0, int radianceBuffs = 0, float radianceBuffsPerFloor = 0f, float bossArmor = 0, float bossArmorPerFloor = 0)
     {
         this.prefab = prefab;
         this.healthMod = healthMod;
@@ -670,6 +690,8 @@ public class BossEntry
         this.radianceBuffs = radianceBuffs;
         this.radianceBuffsPerFloor = radianceBuffsPerFloor;
         this.offset = offset ?? Vector3.zero;
+        this.bossArmor = bossArmor;
+        this.bossArmorPerFloor = bossArmorPerFloor;
     }
 }
 

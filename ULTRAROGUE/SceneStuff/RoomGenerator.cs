@@ -74,7 +74,9 @@ public class RoomGenerator : MonoBehaviour
     public float planetChance = 0.01f;
 
 
+    [Header("Debug Settings")]
     public bool OnDebugMode = false;
+    public string DebugSeed = "FunnySeedHere";
 
     public void SwitchTheme(FloorTheme PreviousTheme, FloorTheme NewTheme)
     {
@@ -85,6 +87,7 @@ public class RoomGenerator : MonoBehaviour
 
     void Awake()
     {
+        if (OnDebugMode) Plugin.GameSeed = DebugSeed;
         Room.roomIndex = 0;
         Instance = this;
         SwitchTheme(null, currentTheme);

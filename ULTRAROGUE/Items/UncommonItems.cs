@@ -1,10 +1,13 @@
 ﻿using HarmonyLib;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using ULTRAKILL.Enemy;
 using Ultrarogue.Characters;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.UIElements;
+using static UnityEngine.ParticleSystem.PlaybackState;
 
 namespace Ultrarogue.Items
 {
@@ -30,6 +33,105 @@ namespace Ultrarogue.Items
             });
         }
     }
+    public class Nailsaw : BaseItem
+    {
+        const float chance = 5f;
+        public override string ItemName => "Nailsaw";
+        public override string itemDescription => $"On sawblade ricochet, {chance}% (+{chance}% per stack) to shoot nails in every direction.";
+        public override Rarity Rarity => Rarity.Uncommon;
+        public override bool CanSpawn()
+        {
+            return Plugin.weapons.Any((x) => x.weapon == Plugin.Weapon.Nailgun && x.Alternate);
+        }
+        Vector3[] directions =
+        {
+            // Straight directions
+            Vector3.up,
+            Vector3.down,
+            Vector3.left,
+            Vector3.right,
+            Vector3.forward,
+            Vector3.back,
+
+            // 2-direction diagonals
+            (Vector3.up + Vector3.right).normalized,
+            (Vector3.up + Vector3.left).normalized,
+            (Vector3.up + Vector3.forward).normalized,
+            (Vector3.up + Vector3.back).normalized,
+
+            (Vector3.down + Vector3.right).normalized,
+            (Vector3.down + Vector3.left).normalized,
+            (Vector3.down + Vector3.forward).normalized,
+            (Vector3.down + Vector3.back).normalized,
+
+            (Vector3.right + Vector3.forward).normalized,
+            (Vector3.right + Vector3.back).normalized,
+            (Vector3.left + Vector3.forward).normalized,
+            (Vector3.left + Vector3.back).normalized,
+        };
+        public override void OnStart()
+        {
+            new ProjectileCollideEffect(ItemName, (proj, type, other) =>
+            {
+                if (type != ProjectileType.Nail) return;
+                if (!LayerMaskDefaults.IsMatchingLayer(other.layer, LMD.Environment)) return;
+                Nail nai = proj.GetComponent<Nail>();
+                int c = Plugin.GetItemCount(this);
+                if (c <= 0) return;
+                float ch = chance * c;
+
+                if(Plugin.canExecute(ch, "") && nai.sawblade)
+                {
+                    foreach (Vector3 direction in directions)
+                    {
+                        SpawnNail(proj.transform.position, direction);
+                    }
+                }
+            });
+        }
+
+        public void SpawnNail(Vector3 pos, Vector3 direction)
+        {
+            GameObject n = Object.Instantiate(AssetsManager.nail, pos, Quaternion.identity);
+
+            n.transform.forward = direction;
+
+            if (n.TryGetComponent<Rigidbody>(out var rigidbody))
+            {
+                rigidbody.velocity = n.transform.forward * 400f;
+            }
+        }
+    }
+
+    public class PunchChip : BaseItem
+    {
+        const float damageIncrease = 0.35f;
+        const float attackspeedDecrease = 0.15f;
+        public override string ItemName => "Power Syringe";
+        public override string itemDescription => $"+{damageIncrease * 100}% damage, -{attackspeedDecrease * 100}% attack speed";
+        public override Rarity Rarity => Rarity.Uncommon;
+        public override List<ItemTag> itemTags => new List<ItemTag>() { ItemTag.Utility, ItemTag.Damage };
+
+        Change atk;
+        Change dmg;
+
+
+        public override void OnStart()
+        {
+            base.OnStart();
+            atk = new Change();
+            dmg = new Change();
+            new PlayerChange(attackSpeed: atk, globalDamageMult: dmg);
+        }
+
+        public override void OnUpdate(int count)
+        {
+            base.OnUpdate(count);
+            atk.percentage = attackspeedDecrease * count * -1;
+            dmg.percentage = damageIncrease * count;
+        }
+    }
+
     public class RationCard : BaseItem
     {
         public override string ItemName => "Ration Card";

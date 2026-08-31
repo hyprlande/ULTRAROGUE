@@ -11,10 +11,12 @@ using Ultrarogue.Curses;
 using Ultrarogue.Items;
 using Ultrarogue.SceneStuff;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AI;
 using static Ultrarogue.Plugin;
 using Random = UnityEngine.Random;
+using Ultrarogue.Behaviours;
 
 public enum RoomType
 {
@@ -50,6 +52,8 @@ public class Room : MonoBehaviour
     public int SpawnCredits = 0;
 
     public List<Transform> spawnPoints = new List<Transform>();
+
+    public UnityEvent OnRoomClear;
 
     public RoomType roomType = RoomType.Normal;
 
@@ -130,6 +134,16 @@ public class Room : MonoBehaviour
         );
     }
 
+    bool isRedoooo;
+    public void RedoBoss()
+    {
+        rewardGiven = false;
+        isRedoooo = true;
+        hasSpawnedEnemies = false;
+        StartCoroutine(SpawnBoss());
+
+    }
+
     public void OnRoomEnter()
     {
         foreach (var item in Plugin.items)
@@ -139,6 +153,7 @@ public class Room : MonoBehaviour
         switch (roomType)
         {
             case RoomType.Boss:
+
                 StartCoroutine(SpawnBoss());
                 break;
 
@@ -650,15 +665,23 @@ public class Room : MonoBehaviour
                     {
                         waveEnemies.Add(eid);
                         float totalHealth = eid.health;
+                        int floorsActive = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
                         if (bossEntry.healthMod != 0 || bossEntry.healthPerFloorMod != 0 || bossEntry.healthAddition != 0)
                         {
                             Enemy e = FindEnemyComponent(bossInst);
                             if (bossEntry.healthMod == 0) bossEntry.healthMod = eid.health;
-                            int floorsActive = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
+                           
                             totalHealth = bossEntry.healthMod + bossEntry.healthAddition + bossEntry.healthPerFloorMod * floorsActive;
                             eid.health = totalHealth;
                             e.health = totalHealth;
                             e.originalHealth = totalHealth;
+                        }
+
+                        if(bossEntry.bossArmor != 0 || bossEntry.bossArmorPerFloor != 0)
+                        {
+                            float totalArmor = bossEntry.bossArmor + bossEntry.bossArmorPerFloor * floorsActive;
+                            BossArmor armor = eid.gameObject.AddComponent<BossArmor>();
+                            armor.Armor = totalArmor;
                         }
 
                         int floorsForRadiance = Mathf.Max(0, RogueDifficultyManager.Instance.floor - bossEntry.startFloor);
@@ -898,6 +921,7 @@ public class Room : MonoBehaviour
     }
     void OnRoomCleared()
     {
+        OnRoomClear?.Invoke();
         UnblockExits();
         MonoSingleton<MusicManager>.Instance.ArenaMusicEnd();
         MonoSingleton<TimeController>.Instance.SlowDown(0.15f);
@@ -981,7 +1005,7 @@ public class Room : MonoBehaviour
         }
         else
         {
-            if (isBossRoom)
+            if (isBossRoom && !isRedoooo)
             {
                 Vector3 spawnPos = transform.position + new Vector3(
                     Random.Range(-2f, 2f), 1f, Random.Range(-2f, 2f));

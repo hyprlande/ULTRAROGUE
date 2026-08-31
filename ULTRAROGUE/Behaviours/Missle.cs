@@ -41,6 +41,7 @@ public class Missle : MonoBehaviour
 
     void Start()
     {
+        Plugin.InvokeProjectileStart(gameObject, ProjectileType.Rocket);
         rb = GetComponent<Rigidbody>();
 
         rb.velocity = Vector3.up * upwardForce;
@@ -114,6 +115,7 @@ public class Missle : MonoBehaviour
         if (!LayerMaskDefaults.IsMatchingLayer(col.gameObject.layer, LMD.Enemies)) return;
 
         if (kaboomed) return;
+        Plugin.InvokeProjectileCollide(gameObject, ProjectileType.Rocket, col.gameObject);
         kaboomed = true;
         Plugin.Logger.LogInfo($"I hit {col.gameObject.name}");
         EnemyIdentifierIdentifier enemy = col.gameObject.GetComponent<EnemyIdentifierIdentifier>();

@@ -1,6 +1,10 @@
 ﻿using HarmonyLib;
+using Steamworks;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using ULTRAKILL.Enemy;
+using ULTRAKILL.Portal;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -58,6 +62,76 @@ namespace Ultrarogue.Items
                 item.SwitchItem(randomItem, RemoveCondition: false, delay: 1);
             }
 
+        }
+    }
+
+    public class HolyLight : BaseItem
+    {
+        const float damage = 0.25f;
+        public override string ItemName => "Holy Light";
+        public override string itemDescription => $"Projectiles have a light that damages enemies within by {damage * 100}% (+{damage * 100}% per stack) per 0.25 seconds.";
+        public override Rarity Rarity => Rarity.Legendary;
+        public override bool CanSpawn()
+        {
+            return Plugin.weapons.Any((x) => x.weapon == Plugin.Weapon.Shotgun && !x.Alternate);
+        }
+        public override List<ItemTag> itemTags => new List<ItemTag>() { ItemTag.Damage };
+        public override void OnStart()
+        {
+            new ProjectileStartEffect(ItemName, (obj, type) =>
+            {
+                if (type == ProjectileType.Projectile)
+                {
+                    obj.AddComponent<TheLightWeLiveIn>();
+                    GameObject lig = Object.Instantiate(GetLight());
+                    lig.transform.parent = obj.transform;
+                    lig.transform.localPosition = Vector3.zero;
+                }
+            });
+        }
+
+        GameObject _lightPrefab;
+
+        public GameObject GetLight()
+        {
+            if (_lightPrefab == null)
+            {
+                _lightPrefab = Addressables.LoadAssetAsync<GameObject>($"{AssetsManager.RoguePath}LivingInTheLight.prefab").WaitForCompletion();
+
+                if (_lightPrefab == null)
+                    _lightPrefab = new GameObject("noprefab:(");
+            }
+
+            return _lightPrefab;
+        }
+
+        public class TheLightWeLiveIn : MonoBehaviour
+        {
+            float dmg = 0;
+            float t = 0;
+            void Awake()
+            {
+                dmg = damage * Plugin.GetItemCount("Holy Light");
+
+            }
+
+            void Update()
+            {
+                t += Time.deltaTime;
+
+                if (t >= 0.25f)
+                {
+                    List<EnemyIdentifier> eids = EnemyTracker.Instance.GetCurrentEnemies();
+                    if (eids.Count <= 0) return;
+                    eids = eids.Where((x) => Vector3.Distance(x.transform.position, transform.position) <= 5).ToList();
+
+                    foreach (var eid in eids)
+                    {
+                        eid.hitter = "light";
+                        eid.DeliverDamage(eid.gameObject, Vector3.zero, eid.transform.position, dmg, false);
+                    }
+                }
+            }
         }
     }
 
@@ -531,7 +605,7 @@ namespace Ultrarogue.Items
         const float DamageMultiplier = 10f;
 
         public override string ItemName => "Residual Cannon";
-        public override string itemDescription => $"On hitscan fire, create a continuous beam that stays for {DurationPerStack}s (+{DurationPerStack}s per stack) and deals {DamageMultiplier * 100}% TOTAL damage";
+        public override string itemDescription => $"On hitscan fire, create a continuous beam that stays for {DurationPerStack}s (+{DurationPerStack}s per stack) and deals 100% TOTAL damage";
         public override List<ItemTag> itemTags => new List<ItemTag>() { ItemTag.Damage };
         public override Rarity Rarity => Rarity.Legendary;
         public override List<Plugin.Weapon> WeaponRequirements => new List<Plugin.Weapon>() { Plugin.Weapon.Revolver };
@@ -562,6 +636,386 @@ namespace Ultrarogue.Items
                 lr.colorGradient = __instance.lr.colorGradient;
             }
             Object.Destroy(beam, DurationPerStack * count);
+        }
+    }
+
+    public class BentSpoon : BaseItem
+    {
+        public override string ItemName => "Bent Spoon";
+        public override string itemDescription => "All your projectile home.";
+        public override bool CanOnlyHaveOne => true;
+
+        public override Rarity Rarity => Rarity.Legendary;
+        public override bool RequiresAtleastOneWeapon => true;
+
+        public override void OnStart()
+        {
+            base.OnStart();
+            new ProjectileStartEffect(ItemName, (proj, type) =>
+            {
+                switch (type)
+                {
+                    case ProjectileType.Projectile:
+                        proj.AddComponent<ProjectileHoming>();
+                        break;
+                    case ProjectileType.Nail:
+                        proj.AddComponent<NailHoming>();
+                        break;
+                    case ProjectileType.Rocket:
+                        proj.AddComponent<RocketHoming>();
+                        proj.AddComponent<GrenadeHoming>();
+                        break;
+                }
+                
+            });
+        }
+
+        public class GrenadeHoming : MonoBehaviour
+        {
+            Grenade grenade;
+            VisionQuery visionQuery;
+            Vision vision;
+            Rigidbody rb;
+
+            void Awake()
+            {
+                grenade = GetComponent<Grenade>();
+                rb = GetComponent<Rigidbody>();
+
+                // Ensure it's a player grenade and NOT a rocket
+                if (grenade == null || grenade.rocket || grenade.enemy)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                this.visionQuery = new VisionQuery("GrenadeHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
+                {
+                TargetType.ENEMY
+                }));
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+            }
+
+            void Start()
+            {
+                // Optional: Give standard grenades a purple tint to match Bent Spoon
+                Renderer[] rends = GetComponentsInChildren<Renderer>();
+                foreach (var rend in rends)
+                {
+                    foreach (var mat in rend.materials)
+                    {
+                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+                    }
+                }
+            }
+
+            void FixedUpdate()
+            {
+                if (this.visionQuery == null || grenade == null) return;
+                if (rb == null) rb = grenade.rb;
+                if (rb == null || grenade.magnets.Count > 0) return;
+
+                vision.UpdateSourcePos(transform.position);
+                TargetDataRef src;
+
+                // If vision spots an enemy, gently curve the grenade's velocity toward them
+                if (this.vision.TrySee(this.visionQuery, out src) && src.target != null)
+                {
+                    Vector3 targetPos = src.target.Position;
+                    Vector3 direction = (targetPos - transform.position).normalized;
+
+                    float currentSpeed = rb.velocity.magnitude;
+                    if (currentSpeed < 0.1f) currentSpeed = 20f;
+
+                    // Smoothly steer velocity vector towards the target without completely breaking physics arc
+                    rb.velocity = Vector3.RotateTowards(rb.velocity, direction * currentSpeed, 10f * Mathf.Deg2Rad * Time.fixedDeltaTime * 60f, 0f);
+
+                    // Align rotation to face movement direction
+                    if (rb.velocity != Vector3.zero)
+                    {
+                        transform.rotation = Quaternion.LookRotation(rb.velocity);
+                    }
+                }
+            }
+        }
+
+        public class RocketHoming : MonoBehaviour
+        {
+            Grenade grenade;
+            VisionQuery visionQuery;
+            Vision vision;
+
+            void Awake()
+            {
+                grenade = GetComponent<Grenade>();
+                if (grenade == null || !grenade.rocket || grenade.enemy)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                this.visionQuery = new VisionQuery("RocketHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
+                {
+                TargetType.ENEMY
+                }));
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+            }
+
+            void Start()
+            {
+                Renderer[] rends = GetComponentsInChildren<Renderer>();
+                foreach (var rend in rends)
+                {
+                    foreach (var mat in rend.materials)
+                    {
+                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+                    }
+                }
+            }
+
+            void FixedUpdate()
+            {
+                if (this.visionQuery == null || grenade == null || grenade.frozen || grenade.playerRiding) return;
+
+                vision.UpdateSourcePos(transform.position);
+                TargetDataRef src;
+
+                if (this.vision.TrySee(this.visionQuery, out src) && src.target != null && grenade.magnets.Count == 0)
+                {
+                    Vector3 targetPos = src.target.Position;
+                    Quaternion targetRot = Quaternion.LookRotation(targetPos - transform.position);
+
+                    transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, Time.fixedDeltaTime * 180f);
+
+                    if (grenade.rb != null && grenade.rocketSpeed > 0f)
+                    {
+                        grenade.rb.velocity = transform.forward * grenade.rocketSpeed;
+                    }
+                }
+            }
+        }
+
+        public class NailHoming : MonoBehaviour
+        {
+            Nail nail;
+            VisionQuery visionQuery;
+            Vision vision;
+            Rigidbody rb;
+
+            void Awake()
+            {
+                nail = GetComponent<Nail>();
+                rb = GetComponent<Rigidbody>();
+
+                if (nail == null || nail.enemy)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                this.visionQuery = new VisionQuery("NailHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
+                {
+                TargetType.ENEMY
+                }));
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+            }
+
+            void Start()
+            {
+                Renderer[] rends = GetComponentsInChildren<Renderer>();
+                foreach (var rend in rends)
+                {
+                    foreach (var mat in rend.materials)
+                    {
+                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+                    }
+                }
+            }
+
+            void FixedUpdate()
+            {
+                if (nail.currentHitEnemy != null) return;
+                if (this.visionQuery == null || nail.hit) return;
+                if (rb == null) rb = nail.rb;
+                if (rb == null) return;
+
+                vision.UpdateSourcePos(transform.position);
+                TargetDataRef src;
+
+                if (this.vision.TrySee(this.visionQuery, out src) && src.target != null)
+                {
+                    Vector3 targetPos = src.target.Position;
+                    Vector3 direction = (targetPos - transform.position).normalized;
+
+                    float currentSpeed = rb.velocity.magnitude;
+                    if (currentSpeed < 0.1f) currentSpeed = 100f;
+
+                    rb.velocity = Vector3.RotateTowards(rb.velocity, direction * currentSpeed, 15f * Mathf.Deg2Rad * Time.fixedDeltaTime * 60f, 0f);
+                }
+            }
+        }
+
+        public class ProjectileHoming : MonoBehaviour
+        {
+            Projectile proj;
+            VisionQuery visionQuery;
+            Vision vision;
+            TargetHandle handle;
+            Vector3 lastDimensionalTarget;
+            TargetHandle lastTargetData;
+
+            void Awake()
+            {
+                proj = GetComponent<Projectile>();
+                if (!proj.playerBullet)
+                {
+                    Destroy(this);
+                    return;
+                }
+                this.visionQuery = new VisionQuery("HomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
+                {
+                    TargetType.ENEMY
+                }));
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+            }
+            void Start()
+            {
+                Renderer[] rends = GetComponentsInChildren<Renderer>();
+
+                foreach (var rend in rends)
+                {
+                    Material mat = new Material(rend.material);
+
+                    mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+
+                    rend.material = mat;
+                }
+            }
+
+            void Update()
+            {
+                if (this.visionQuery == null) return;
+                vision.UpdateSourcePos(transform.position);
+                TargetDataRef src;
+                if (this.vision.TrySee(this.visionQuery, out src))
+                {
+                    this.handle = src.CreateHandle();
+                    this.lastDimensionalTarget = Vector3.zero;
+                    this.lastTargetData = src.ToData();
+                    DoHome();
+                }
+            }
+
+            void DoHome()
+            {
+                proj.homingType = HomingType.Instant;
+                proj.targetHandle = handle;
+            }
+        }
+        [HarmonyPatch(typeof(RevolverBeam), "Start")]
+        public class RevolverBeam_Start_BentSpoon_Bend
+        {
+            const float DetectionRadius = 25f;
+            const float MaxBendAngle = 60f;
+
+            static void Prefix(RevolverBeam __instance)
+            {
+                if (Plugin.GetItemCount("Bent Spoon") <= 0) return;
+                if (__instance.beamType != BeamType.Revolver) return;
+                if (__instance.fake) return;
+                if (__instance.aimAssist) return;
+
+                Transform t = __instance.transform;
+                Vector3 origin = t.position;
+                Vector3 forward = t.forward;
+
+                Transform target = FindBendTarget(origin, forward, DetectionRadius, MaxBendAngle);
+                if (target == null) return;
+
+                Vector3 newDir = (target.position - origin).normalized;
+                t.rotation = Quaternion.LookRotation(newDir, t.up);
+
+                var marker = __instance.gameObject.AddComponent<BentSpoonBendMarker>();
+                marker.originalForward = forward;
+            }
+
+            static Transform FindBendTarget(Vector3 origin, Vector3 forward, float radius, float maxAngle)
+            {
+                var hits = Physics.OverlapSphere(origin, 1000f, LayerMaskDefaults.Get(LMD.Enemies), QueryTriggerInteraction.Collide);
+                Transform best = null;
+                float bestLateral = float.MaxValue;
+
+                foreach (var col in hits)
+                {
+                    var eii = col.GetComponentInParent<EnemyIdentifierIdentifier>();
+                    if (eii == null || eii.eid == null || eii.eid.dead) continue;
+
+                    Vector3 toTarget = col.transform.position - origin;
+                    float alongForward = Vector3.Dot(toTarget, forward);
+                    if (alongForward <= 0f) continue;
+
+                    Vector3 closestOnRay = origin + forward * alongForward;
+                    float lateralDist = Vector3.Distance(closestOnRay, col.transform.position);
+                    if (lateralDist > radius) continue;
+
+                    if (Vector3.Angle(forward, toTarget) > maxAngle) continue;
+                    if (Physics.Linecast(origin, col.transform.position, LayerMaskDefaults.Get(LMD.Environment))) continue;
+
+                    if (lateralDist < bestLateral)
+                    {
+                        bestLateral = lateralDist;
+                        best = col.transform;
+                    }
+                }
+                return best;
+            }
+            [HarmonyPatch(typeof(RevolverBeam), "Shoot")]
+            public class RevolverBeam_Shoot_BentSpoon_Visual
+            {
+                const int CurveSegments = 16;
+
+                static void Postfix(RevolverBeam __instance)
+                {
+                    var marker = __instance.GetComponent<BentSpoonBendMarker>();
+                    if (marker == null) return;
+
+                    var lr = __instance.GetComponent<LineRenderer>();
+                    if (lr == null || lr.positionCount < 2) { Object.Destroy(marker); return; }
+                    lr.startColor = new Color(0.5f, 0, 0.5f);
+                    lr.endColor = new Color(0.5f, 0, 0.5f);
+                    Vector3 start = lr.GetPosition(0);
+                    Vector3 end = lr.GetPosition(lr.positionCount - 1);
+                    float dist = Vector3.Distance(start, end);
+                    Vector3 control = start + marker.originalForward.normalized * (dist * 0.35f);
+
+                    Vector3[] curve = new Vector3[CurveSegments + 1];
+                    for (int i = 0; i <= CurveSegments; i++)
+                    {
+                        float tt = i / (float)CurveSegments;
+                        curve[i] = Bezier(start, control, end, tt);
+                    }
+
+                    lr.positionCount = curve.Length;
+                    lr.SetPositions(curve);
+                    Object.Destroy(marker);
+                }
+
+                static Vector3 Bezier(Vector3 a, Vector3 b, Vector3 c, float t)
+                {
+                    Vector3 ab = Vector3.Lerp(a, b, t);
+                    Vector3 bc = Vector3.Lerp(b, c, t);
+                    return Vector3.Lerp(ab, bc, t);
+                }
+            }
+        }
+
+        public class BentSpoonBendMarker : MonoBehaviour
+        {
+            public Vector3 originalForward;
         }
     }
 
