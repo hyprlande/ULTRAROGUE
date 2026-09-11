@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 using System.Text;
 using TMPro;
 using Ultrarogue;
@@ -11,12 +13,48 @@ using UnityEngine.AddressableAssets;
 
 public class ItemPickup : MonoBehaviour
 {
+    Texture2D getBlindTexture { get
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            string resourceName = $"Ultrarogue.ItemIcons.Unknown.png";
+
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    Debug.LogWarning($"[ItemIcon] Resource not found: {resourceName}");
+                    return null;
+                }
+
+                byte[] buffer = new byte[stream.Length];
+                stream.Read(buffer, 0, buffer.Length);
+
+                Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                texture.LoadImage(buffer);
+                texture.filterMode = FilterMode.Point;
+                texture.name = "Unknown";
+
+                return texture;
+            }
+        } 
+    }
+
+
     public BaseItem item;
     bool pickedUp = false;
     Func<bool> canPickup;
 
     float t = 0;
     float messageCooldown = 0f; // for shop "not enough gold" spam prevention
+
+
+    public void BecomeBlind()
+    {
+        Material mat = new Material(item.materialOverride ? item.materialOverride : AssetsManager.weaponMat);
+        mat.mainTexture = getBlindTexture;
+        item.OnMaterialApply(mat);
+        gameObject.GetComponent<MeshRenderer>().material = mat;
+    }
 
     void Update()
     {
@@ -126,7 +164,7 @@ public class ItemPickup : MonoBehaviour
         };
     }
 
-    public static void CreatePickup(BaseItem item, Transform position, float offset = 3, float delay = 0)
+    public static void CreatePickup(BaseItem item, Transform position, float offset = 3, float delay = 0, bool isShop = false)
     {
         int c = Plugin.GetItemCount(Null.I);
         if (c > 0)
@@ -146,7 +184,7 @@ public class ItemPickup : MonoBehaviour
         pickup.transform.parent = position;
         pickup.transform.localScale *= 3;
         p.t = delay;
-        if (HasShoppingPassive())
+        if (HasShoppingPassive() && !isShop)
             AddShopPrefab(p, offset);
     }
     public static void CreatePickupConditional(BaseItem item, Transform position, Func<bool> pickupCon, float offset = 3, bool isShop = false, float delay = 0)

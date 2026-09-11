@@ -26,6 +26,8 @@ public class FilthBallBehaviour : MonoBehaviour
     private float stateTimer;
     private Transform player;
 
+    float deadTimer = .25f;
+
     void Start()
     {
         velocity = Random.onUnitSphere * speed;
@@ -62,6 +64,14 @@ public class FilthBallBehaviour : MonoBehaviour
 
     void Update()
     {
+        if (eid.dead)
+        {
+            deadTimer -= Time.deltaTime;
+            if(deadTimer <= 0)
+            {
+                Destroy(gameObject);
+            }
+        }
         switch (state)
         {
             case State.Roaming:

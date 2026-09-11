@@ -84,6 +84,22 @@ public class RoomGenerator : MonoBehaviour
         NewTheme.OnThemeSwitch.Invoke();
     }
 
+    void UpdateThemeForFloor()
+    {
+        if (Themes == null || Themes.Count == 0) return;
+
+        int floor = Mathf.RoundToInt(RogueDifficultyManager.Instance.floor);
+        int themeIndex = Mathf.Clamp(floor / 5, 0, Themes.Count - 1);
+
+        FloorTheme newTheme = Themes[themeIndex];
+        if (newTheme != currentTheme)
+        {
+            FloorTheme previousTheme = currentTheme;
+            currentTheme = newTheme;
+            SwitchTheme(previousTheme, currentTheme);
+        }
+    }
+
 
     void Awake()
     {
@@ -131,6 +147,7 @@ public class RoomGenerator : MonoBehaviour
         _generationComplete = false;
         if (MinimapUI.Instance != null) MinimapUI.Instance.ClearAndReset();
         RogueDifficultyManager.Instance.MoveStage();
+        UpdateThemeForFloor();
         StartCoroutine(GenerateRooms(false));
     }
     IEnumerator GenerateRooms(bool firstTime = true)

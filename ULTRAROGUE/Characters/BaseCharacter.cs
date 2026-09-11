@@ -28,7 +28,8 @@ namespace Ultrarogue.Characters
         TripleShot,
         Street,
         Greedy,
-        HeadBonk
+        HeadBonk,
+        InfiniteAmmo
     }
 
 }

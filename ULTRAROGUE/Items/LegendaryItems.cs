@@ -82,6 +82,9 @@ namespace Ultrarogue.Items
             {
                 if (type == ProjectileType.Projectile)
                 {
+                    if (!obj.TryGetComponent<Projectile>(out var proj))
+                        return;
+                    if (!proj.playerBullet) return;
                     obj.AddComponent<TheLightWeLiveIn>();
                     GameObject lig = Object.Instantiate(GetLight());
                     lig.transform.parent = obj.transform;
@@ -297,6 +300,163 @@ namespace Ultrarogue.Items
             missle.transform.position = CameraController.Instance.GetDefaultPos() + Vector3.up * 3.5f;
         }
     }
+
+    [HarmonyPatch]
+    public class SplatterShot : BaseItem
+    {
+        public override string ItemName => "Splatter Shot";
+        public override string itemDescription => "Replace your shotgun pellet with one large, high damage projectile that bursts into 10 (+10 per stack) bullets on hit.";
+        public override Rarity Rarity => Rarity.Legendary;
+        public override bool CanSpawn()
+        {
+            return Plugin.weapons.Any((x) => x.weapon == Plugin.Weapon.Shotgun && !x.Alternate);
+        }
+        public override void OnStart()
+        {
+            base.OnStart();
+            new ProjectileCollideEffect(ItemName, (proj, type, other) =>
+            {
+                if (other == null) return;
+                if (!LayerMaskDefaults.IsMatchingLayer(other.layer, LMD.EnemiesAndEnvironment)) return;
+                if (proj.TryGetComponent<ShotOfSplatter>(out var splt))
+                {
+                    Vector3 awayDir = (proj.transform.position - other.transform.position).normalized;
+                    if (awayDir == Vector3.zero)
+                    {
+                        awayDir = proj.transform.forward; // fallback if positions overlap
+                    }
+
+                    int c = Plugin.GetItemCount(this);
+
+                    for (int i = 0; i < 10 * c; i++)
+                    {
+                        GameObject newProj = GameObject.Instantiate(splt.oldProj, proj.transform.position, Quaternion.identity);
+                        Projectile projj = newProj.GetComponent<Projectile>();
+                        projj.weaponType = "shotgun";
+
+                        // Random direction, but flipped into the hemisphere facing away from 'other'
+                        Vector3 randomDir = Random.insideUnitSphere;
+                        if (Vector3.Dot(randomDir, awayDir) < 0f)
+                        {
+                            randomDir = -randomDir;
+                        }
+
+                        newProj.transform.forward = randomDir.normalized;
+                    }
+                }
+            });
+        }
+
+        public override void OnUpdate(int count)
+        {
+            base.OnUpdate(count);
+
+        }
+
+
+        public class ShotOfSplatter : MonoBehaviour
+        {
+            public GameObject oldProj;
+        }
+
+        [HarmonyPatch(typeof(Shotgun), nameof(Shotgun.Shoot))]
+        [HarmonyPrefix]
+        public static bool Prefix(Shotgun __instance)
+        {
+            int count = Plugin.GetItemCount(new SplatterShot().ItemName);
+            if (count <= 0)
+            {
+                // No item -> let the original Shoot() run normally
+                return true;
+            }
+
+            // --- Replicate the essential setup from the original Shoot() ---
+            Rigidbody rb = MonoSingleton<NewMovement>.Instance.rb;
+            Vector3 kickDir = Vector3.ProjectOnPlane(
+                MonoSingleton<CameraController>.Instance.cam.transform.forward,
+                MonoSingleton<NewMovement>.Instance.transform.up);
+            rb.velocity += kickDir.normalized;
+
+            Vector3 position = __instance.cam.transform.position;
+
+            __instance.gunReady = false;
+
+            PlayerAnimations pa = MonoSingleton<PlayerAnimations>.Instance;
+            if (pa != null)
+            {
+                pa.Shoot(0.5f);
+            }
+
+            MonoSingleton<CameraController>.Instance.StopShake();
+
+            Vector3 direction = __instance.cam.transform.forward;
+            if (__instance.targeter.CurrentTarget && __instance.targeter.IsAutoAimed)
+            {
+                direction = __instance.targeter.GetAimDirectionFrom(
+                    MonoSingleton<CameraController>.Instance.GetDefaultPos());
+            }
+
+            MonoSingleton<RumbleManager>.Instance.SetVibrationTracked(
+                RumbleProperties.GunFireProjectiles, __instance.gameObject);
+
+            // --- Fire ONE big, high-damage projectile instead of the pellet spread ---
+            GameObject bulletObj = Object.Instantiate(
+                __instance.bullet, position, __instance.cam.transform.rotation);
+
+            bulletObj.AddComponent<ShotOfSplatter>().oldProj = __instance.bullet;
+
+            Projectile proj = bulletObj.GetComponent<Projectile>();
+            proj.weaponType = "shotgun" + __instance.variation.ToString() + "_splatter";
+            proj.sourceWeapon = __instance.gc.currentWeapon;
+            proj.damage = 15;
+
+            if (__instance.targeter.CurrentTarget && __instance.targeter.IsAutoAimed)
+            {
+                bulletObj.transform.LookAt(__instance.targeter.CurrentTargetAimPosition);
+            }
+            else
+            {
+                bulletObj.transform.rotation = Quaternion.LookRotation(direction);
+            }
+
+            bulletObj.transform.localScale *= 6f;
+            __instance.gunAud.SetPitch(Random.Range(0.75f, 0.85f));
+            __instance.gunAud.clip = __instance.shootSound;
+            __instance.gunAud.volume = 0.45f;
+            __instance.gunAud.panStereo = 0f;
+            __instance.gunAud.Play(true);
+
+            __instance.cc.CameraShake(1.5f);
+
+            if (__instance.variation == 1)
+            {
+                __instance.anim.SetTrigger("PumpFire");
+            }
+            else
+            {
+                __instance.anim.SetTrigger("Fire");
+            }
+
+            Transform[] shootPoints = __instance.shootPoints;
+            for (int i = 0; i < shootPoints.Length; i++)
+            {
+                shootPoints[i].GetPositionAndRotation(out Vector3 sp, out Quaternion sr);
+                Object.Instantiate(__instance.muzzleFlash, sp, sr);
+            }
+
+            __instance.releasingHeat = false;
+            __instance.tempColor.a = 1f;
+            __instance.heatSinkSMR.sharedMaterials[3].SetColor("_TintColor", __instance.tempColor);
+
+            if (__instance.variation == 1)
+            {
+                __instance.primaryCharge = 0;
+            }
+
+            return false;
+        }
+    }
+
     public class PrimeHead : BaseItem
     {
         const float CooldownReductionPerStack = 0.60f;
@@ -639,6 +799,7 @@ namespace Ultrarogue.Items
         }
     }
 
+
     public class BentSpoon : BaseItem
     {
         public override string ItemName => "Bent Spoon";
@@ -647,7 +808,6 @@ namespace Ultrarogue.Items
 
         public override Rarity Rarity => Rarity.Legendary;
         public override bool RequiresAtleastOneWeapon => true;
-
         public override void OnStart()
         {
             base.OnStart();
@@ -666,8 +826,31 @@ namespace Ultrarogue.Items
                         proj.AddComponent<GrenadeHoming>();
                         break;
                 }
-                
+
             });
+        }
+
+        static void TintPurple(GameObject go, bool cloneMaterial = false)
+        {
+            Renderer[] rends = go.GetComponentsInChildren<Renderer>();
+            foreach (var rend in rends)
+            {
+                if (cloneMaterial)
+                {
+                    Material mat = new Material(rend.material);
+                    if (mat.HasProperty("_Color"))
+                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+                    rend.material = mat;
+                }
+                else
+                {
+                    foreach (var mat in rend.materials)
+                    {
+                        if (mat.HasProperty("_Color"))
+                            mat.color = mat.color * new Color(0.5f, 0, 0.5f);
+                    }
+                }
+            }
         }
 
         public class GrenadeHoming : MonoBehaviour
@@ -676,6 +859,7 @@ namespace Ultrarogue.Items
             VisionQuery visionQuery;
             Vision vision;
             Rigidbody rb;
+            System.Threading.CancellationTokenSource visionCts;
 
             void Awake()
             {
@@ -692,22 +876,16 @@ namespace Ultrarogue.Items
                 this.visionQuery = new VisionQuery("GrenadeHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
-                TargetType.ENEMY
+            TargetType.ENEMY
                 }));
-                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+                visionCts = new System.Threading.CancellationTokenSource();
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, visionCts.Token);
             }
 
             void Start()
             {
                 // Optional: Give standard grenades a purple tint to match Bent Spoon
-                Renderer[] rends = GetComponentsInChildren<Renderer>();
-                foreach (var rend in rends)
-                {
-                    foreach (var mat in rend.materials)
-                    {
-                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
-                    }
-                }
+                TintPurple(gameObject);
             }
 
             void FixedUpdate()
@@ -738,6 +916,16 @@ namespace Ultrarogue.Items
                     }
                 }
             }
+
+            void OnDestroy()
+            {
+                // Prevent the TargetTracker's vision list from growing forever.
+                if (visionCts != null)
+                {
+                    visionCts.Cancel();
+                    visionCts.Dispose();
+                }
+            }
         }
 
         public class RocketHoming : MonoBehaviour
@@ -745,6 +933,7 @@ namespace Ultrarogue.Items
             Grenade grenade;
             VisionQuery visionQuery;
             Vision vision;
+            System.Threading.CancellationTokenSource visionCts;
 
             void Awake()
             {
@@ -758,21 +947,15 @@ namespace Ultrarogue.Items
                 this.visionQuery = new VisionQuery("RocketHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
-                TargetType.ENEMY
+            TargetType.ENEMY
                 }));
-                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+                visionCts = new System.Threading.CancellationTokenSource();
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, visionCts.Token);
             }
 
             void Start()
             {
-                Renderer[] rends = GetComponentsInChildren<Renderer>();
-                foreach (var rend in rends)
-                {
-                    foreach (var mat in rend.materials)
-                    {
-                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
-                    }
-                }
+                TintPurple(gameObject);
             }
 
             void FixedUpdate()
@@ -795,6 +978,15 @@ namespace Ultrarogue.Items
                     }
                 }
             }
+
+            void OnDestroy()
+            {
+                if (visionCts != null)
+                {
+                    visionCts.Cancel();
+                    visionCts.Dispose();
+                }
+            }
         }
 
         public class NailHoming : MonoBehaviour
@@ -803,6 +995,13 @@ namespace Ultrarogue.Items
             VisionQuery visionQuery;
             Vision vision;
             Rigidbody rb;
+            System.Threading.CancellationTokenSource visionCts;
+
+            // --- Optimization: throttle + cache ---
+            const float CheckInterval = 0.08f; // ~12 checks/sec instead of 50
+            float nextCheckTime;
+            Vector3 cachedDirection;
+            bool hasCachedDirection;
 
             void Awake()
             {
@@ -818,21 +1017,18 @@ namespace Ultrarogue.Items
                 this.visionQuery = new VisionQuery("NailHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
-                TargetType.ENEMY
+            TargetType.ENEMY
                 }));
-                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+                visionCts = new System.Threading.CancellationTokenSource();
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, visionCts.Token);
+
+                // Stagger which frame each nail does its expensive check on
+                nextCheckTime = Time.time + UnityEngine.Random.Range(0f, CheckInterval);
             }
 
             void Start()
             {
-                Renderer[] rends = GetComponentsInChildren<Renderer>();
-                foreach (var rend in rends)
-                {
-                    foreach (var mat in rend.materials)
-                    {
-                        mat.color = mat.color * new Color(0.5f, 0, 0.5f);
-                    }
-                }
+                TintPurple(gameObject);
             }
 
             void FixedUpdate()
@@ -842,18 +1038,41 @@ namespace Ultrarogue.Items
                 if (rb == null) rb = nail.rb;
                 if (rb == null) return;
 
-                vision.UpdateSourcePos(transform.position);
-                TargetDataRef src;
-
-                if (this.vision.TrySee(this.visionQuery, out src) && src.target != null)
+                // Only do the expensive vision/raycast query occasionally
+                if (Time.time >= nextCheckTime)
                 {
-                    Vector3 targetPos = src.target.Position;
-                    Vector3 direction = (targetPos - transform.position).normalized;
+                    nextCheckTime = Time.time + CheckInterval;
 
+                    vision.UpdateSourcePos(transform.position);
+                    TargetDataRef src;
+
+                    if (this.vision.TrySee(this.visionQuery, out src) && src.target != null)
+                    {
+                        cachedDirection = (src.target.Position - transform.position).normalized;
+                        hasCachedDirection = true;
+                    }
+                    else
+                    {
+                        hasCachedDirection = false;
+                    }
+                }
+
+                // Cheap steering runs every physics tick using the cached direction
+                if (hasCachedDirection)
+                {
                     float currentSpeed = rb.velocity.magnitude;
                     if (currentSpeed < 0.1f) currentSpeed = 100f;
 
-                    rb.velocity = Vector3.RotateTowards(rb.velocity, direction * currentSpeed, 15f * Mathf.Deg2Rad * Time.fixedDeltaTime * 60f, 0f);
+                    rb.velocity = Vector3.RotateTowards(rb.velocity, cachedDirection * currentSpeed, 15f * Mathf.Deg2Rad * Time.fixedDeltaTime * 60f, 0f);
+                }
+            }
+
+            void OnDestroy()
+            {
+                if (visionCts != null)
+                {
+                    visionCts.Cancel();
+                    visionCts.Dispose();
                 }
             }
         }
@@ -866,6 +1085,7 @@ namespace Ultrarogue.Items
             TargetHandle handle;
             Vector3 lastDimensionalTarget;
             TargetHandle lastTargetData;
+            System.Threading.CancellationTokenSource visionCts;
 
             void Awake()
             {
@@ -878,22 +1098,14 @@ namespace Ultrarogue.Items
                 this.visionQuery = new VisionQuery("HomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
-                    TargetType.ENEMY
+                TargetType.ENEMY
                 }));
-                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, new System.Threading.CancellationToken(false));
+                visionCts = new System.Threading.CancellationTokenSource();
+                MonoSingleton<PortalManagerV2>.Instance.TargetTracker.RegisterVision(this.vision, visionCts.Token);
             }
             void Start()
             {
-                Renderer[] rends = GetComponentsInChildren<Renderer>();
-
-                foreach (var rend in rends)
-                {
-                    Material mat = new Material(rend.material);
-
-                    mat.color = mat.color * new Color(0.5f, 0, 0.5f);
-
-                    rend.material = mat;
-                }
+                TintPurple(gameObject, cloneMaterial: true);
             }
 
             void Update()
@@ -915,7 +1127,17 @@ namespace Ultrarogue.Items
                 proj.homingType = HomingType.Instant;
                 proj.targetHandle = handle;
             }
+
+            void OnDestroy()
+            {
+                if (visionCts != null)
+                {
+                    visionCts.Cancel();
+                    visionCts.Dispose();
+                }
+            }
         }
+
         [HarmonyPatch(typeof(RevolverBeam), "Start")]
         public class RevolverBeam_Start_BentSpoon_Bend
         {
@@ -973,6 +1195,7 @@ namespace Ultrarogue.Items
                 }
                 return best;
             }
+
             [HarmonyPatch(typeof(RevolverBeam), "Shoot")]
             public class RevolverBeam_Shoot_BentSpoon_Visual
             {

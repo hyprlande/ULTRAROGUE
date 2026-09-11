@@ -595,6 +595,7 @@ namespace Ultrarogue.Items
             $"When hitting an enemy with a rocket, have a {BaseChance}% (+{ChancePerStack}% per stack) chance to fire 3 rockets towards the nearest enemy. Each duplication reduces the chance by {ChanceReduction}%.";
 
         public override Rarity Rarity => Rarity.Uncommon;
+        public override List<Plugin.Weapon> WeaponRequirements => new List<Plugin.Weapon>() { Plugin.Weapon.RocketLauncher };
 
         public class ChainRocketData : MonoBehaviour
         {

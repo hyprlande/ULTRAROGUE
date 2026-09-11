@@ -42,6 +42,7 @@ namespace Ultrarogue
         public static List<HitEffect> hitEffects = new List<HitEffect>();
         public static List<DamageTakenEffect> onDamageEffects = new List<DamageTakenEffect>();
         public static List<DamageModifier> dmgModifiers = new List<DamageModifier>();
+        public static List<DamageTakenModifier> dmgRedModifiers = new List<DamageTakenModifier>();
         public static List<ProjectileStartEffect> projectileStartEffects = new List<ProjectileStartEffect>();
         public static List<ProjectileCollideEffect> projectileCollideEffects = new List<ProjectileCollideEffect>();
 
@@ -178,6 +179,7 @@ namespace Ultrarogue
             characters.Add(new V1());
             characters.Add(new Ultrarogue.Characters.V2());
             characters.Add(new Ultrarogue.Characters.Streetcleaner());
+            characters.Add(new Ultrarogue.Characters.Gutterman());
             characters.Add(new Ultrarogue.Characters.GreedMachine());
             characters.Add(new Ultrarogue.Characters.RandomCharacter());
             characters.Add(new Ultrarogue.Characters.Filth());
@@ -495,13 +497,6 @@ namespace Ultrarogue
         void Update()
         {
             if (!isInRogueScene()) return;
-
-            if (Input.GetKeyDown(KeyCode.X))
-            {
-                GameObject filthy = AssetsManager.GetCustomBoss("FilthBall.prefab");
-
-                Instantiate(filthy, NewMovement.Instance.transform.position, Quaternion.identity);
-            }
             /*
             if (Input.GetKeyDown(KeyCode.X))
             {
@@ -518,16 +513,15 @@ namespace Ultrarogue
                 // List of items to spawn
                 List<BaseItem> items = new List<BaseItem>
                 {
-                    Plugin.getItem("Null"),
-                    Plugin.getItem("Fortitudo"),
-                    Plugin.getItem("Velocitas"),
-                    Plugin.getItem("Rapidiatis"),
-                    Plugin.getItem("Refrigescant"),
-                    Plugin.getItem("Hitscan on hit"),
-                    Plugin.getItem("Damage Book"),
-                    Plugin.getItem("Bowl of Lasagna"),
-                    Plugin.getItem("Repeater"),
-                    Plugin.getItem("Dice"),
+                    Plugin.getItem("Heavy Plating"),
+                    Plugin.getItem("Experimental Chip"),
+                    Plugin.getItem("Knife"),
+                    Plugin.getItem("Nailsaw"),
+                    Plugin.getItem("Power Syringe"),
+                    Plugin.getItem("Chain Rocket"),
+                    Plugin.getItem("Holy Light"),
+                    Plugin.getItem("Splatter Shot"),
+                    Plugin.getItem("Bent Spoon"),
 
                 };
 
@@ -706,7 +700,7 @@ namespace Ultrarogue
                 atkSpeedChange = new Change();
             }
 
-            NewMovement.Instance.walkSpeed = Mathf.Max(moveChange.CalculateChanges(normalMoveSpeed), normalMoveSpeed * 0.2f);
+            NewMovement.Instance.walkSpeed = Mathf.Max(moveChange.CalculateChanges(normalMoveSpeed), normalMoveSpeed * 0.40f);
             NewMovement.Instance.airAcceleration = Mathf.Max(moveChange.CalculateChanges(normalairAccelaration), normalairAccelaration * 0.2f);
             NewMovement.Instance.jumpPower = jumpChange.CalculateChanges(normalJumpHeight);
             globalDamageMult = globalDamageChange;
@@ -1542,6 +1536,14 @@ namespace Ultrarogue
 
             if (damage > 0)
                 damage = (int)Mathf.Max(DamageReduction.CalculateChanges(damage), minDamage); // cannot go below 1
+
+
+            foreach (var mod in Plugin.dmgRedModifiers)
+            {
+                float mult = mod.damageModifier();
+                damage = Mathf.RoundToInt((float)damage * mult);
+            }
+
             foreach (var effect in Plugin.onDamageEffects)
             {
                 effect.effect.Invoke(damage);
@@ -1882,6 +1884,14 @@ namespace Ultrarogue
                 return AttackSpeed.CalculateChanges(maxDelta);
             }
         }
+        [HarmonyPatch(typeof(Nailgun), nameof(Nailgun.Update))]
+        public static class Nailgun_Update_Patch_Postfix
+        {
+            public static void Postfix(Nailgun __instance)
+            {
+                if (Plugin.SelectedChar.HasPassive(Passive.InfiniteAmmo)) __instance.wc.naiAmmo = 100;
+            }
+        }
 
         [HarmonyPatch(typeof(NewMovement), nameof(NewMovement.Update))]
         public static class FilthBoostRechargeTranspiler
@@ -2006,11 +2016,7 @@ namespace Ultrarogue
 
             if (Plugin.SelectedChar.HasPassive(Passive.Greedy))
             {
-                Transform playerTransform = __instance.transform;
-
-                bool floorHit = Physics.Raycast(playerTransform.position, Vector3.down, out RaycastHit floorCheck, 40f, LayerMaskDefaults.Get(LMD.Environment));
-
-                Vector3 spawnPosition = floorHit ? floorCheck.point : playerTransform.position;
+                Vector3 spawnPosition = __instance.transform.position;
 
                 GameObject plc = new GameObject("ItemDropAnchor");
                 plc.transform.position = spawnPosition;
@@ -2027,6 +2033,7 @@ namespace Ultrarogue
         {
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
+            if (__instance.eid.blessed) return;
 
             if(__instance.eid.TryGetComponent<BossArmor>(out var arm))
             {
@@ -2074,6 +2081,7 @@ namespace Ultrarogue
         {
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
+            if (__instance.eid.blessed) return;
             if (__instance.eid.TryGetComponent<BossArmor>(out var arm))
             {
                 multiplier = arm.CalculateDamage(multiplier);
@@ -2219,14 +2227,21 @@ namespace Ultrarogue
         {
             if (!isInRogueScene())
             {
-
+                Plugin.Logger.LogInfo(__instance.cachedActivity.Assets.LargeImage);
                 return;
             }
 
             __instance.cachedActivity.State = "ROGUE MODE";
 
             __instance.cachedActivity.Details = "Floor: " + RogueDifficultyManager.Instance.floor;
-            __instance.cachedActivity.Assets.LargeImage = "level_0-1";
+            if(RoomGenerator.Instance.currentTheme.Name.ToLower() == "limbo")
+            {
+                __instance.cachedActivity.Assets.LargeImage = "level_1-1";
+            }
+            else
+            {
+                __instance.cachedActivity.Assets.LargeImage = "level_0-1";
+            }
 
             string LargeText = $"Go: {RogueDifficultyManager.Instance.Gold} " +
                 $"Ke: {RogueDifficultyManager.Instance.Keys}";
@@ -2400,6 +2415,20 @@ namespace Ultrarogue
             this.damageModifier = damageModifier;
 
             Plugin.dmgModifiers.Add(this);
+        }
+    }
+
+    public class DamageTakenModifier
+    {
+        public string itemName;
+        public Func<float> damageModifier;
+
+        public DamageTakenModifier(string itemName, Func<float> damageModifier)
+        {
+            this.itemName = itemName;
+            this.damageModifier = damageModifier;
+
+            Plugin.dmgRedModifiers.Add(this);
         }
     }
 

@@ -10,6 +10,10 @@ public class Gambler : MonoBehaviour
 {
     const float EXPLOSION_BASE_CHANCE = 0.02f;   // 2% on first use
     const float EXPLOSION_CHANCE_RAMP = 0.02f;   // +2% each subsequent use
+    const float OFFSET_RAMP = 3;
+
+    float offset = 0;
+
     public GameObject ExplosionWarningThing;
     public ShopZone zone;
     int useCount = 0;
@@ -252,7 +256,13 @@ public class Gambler : MonoBehaviour
         }
         else if (item != null)
         {
-            ItemPickup.CreatePickup(item, itemPlacementThing, 8);
+            GameObject parent = new GameObject("aaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            parent.transform.parent = itemPlacementThing;
+            parent.transform.localPosition = Vector3.zero + (transform.right * offset);
+
+            ItemPickup.CreatePickup(item, parent.transform, 8, isShop: true);
+            offset += OFFSET_RAMP;
+            
             HudMessageReceiver.Instance.SendHudMessage("You won an item!");
         }
         else if (winCoins)
