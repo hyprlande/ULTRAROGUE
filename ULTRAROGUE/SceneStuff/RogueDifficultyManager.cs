@@ -91,9 +91,15 @@ public class RogueDifficultyManager : MonoBehaviour
     void Start()
     {
         Transform ChargeParent = NewMovement.Instance.transform.Find("Main Camera/HUD Camera/HUD/GunCanvas/StatsPanel/Filler/Panel (3)");
+        Transform AltChargeParent = NewMovement.Instance.transform.Find("Main Camera/HUD Camera/HUD/GunCanvas/StatsPanel");
 
         charge = Instantiate(Addressables.LoadAssetAsync<GameObject>("Assets/Modding/RogueMode/ActiveCharge.prefab").WaitForCompletion(), ChargeParent);
+        altCharge = Instantiate(Addressables.LoadAssetAsync<GameObject>("Assets/Modding/RogueMode/AltActiveCharge.prefab").WaitForCompletion(), AltChargeParent);
+        altCharge.SetActive(false);
+
         charge.GetComponent<Slider>().value = 0;
+
+        altCharge.transform.Find("ActualCharge").GetComponent<Image>().fillAmount = 0;
 
         currentActiveImage = Instantiate(Addressables.LoadAssetAsync<GameObject>("Assets/Modding/RogueMode/CurrentActiveImage.prefab").WaitForCompletion(), ChargeParent);
 
@@ -102,8 +108,12 @@ public class RogueDifficultyManager : MonoBehaviour
         charge.SetActive(false);
 
         ActiveManager.Instance.ChargeMeter = charge.GetComponent<Slider>();
+        ActiveManager.Instance.AltChargeMeter = altCharge;
+        ActiveManager.Instance.AltChargeMeterMeter = altCharge.transform.Find("ActualCharge").GetComponent<Image>();
         ActiveManager.Instance.CurrentActiveItemImage = currentActiveImage.GetComponent<Image>();
     }
+
+    GameObject altCharge;
 
     GameObject charge;
     GameObject currentActiveImage;

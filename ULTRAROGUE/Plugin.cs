@@ -1075,6 +1075,7 @@ namespace Ultrarogue
             switch (hitter)
             {
                 case "revolver":
+                case "Hitscan on hit":
                     return Weapon.Revolver;
                 case "shotgun":
                 case "shotgunzone":
@@ -1207,6 +1208,8 @@ namespace Ultrarogue
 
             return value;
         }
+
+
         public static bool canExecute(float chance, string hitter, bool luckaffected = true)
         {
             float value = getChanceVal(luckaffected: luckaffected);
@@ -2027,6 +2030,7 @@ namespace Ultrarogue
 
         }
 
+
         [HarmonyPatch(typeof(Enemy), nameof(Enemy.GetHurt))]
         [HarmonyPrefix]
         public static void ActivateHitEffects(ref float multiplier, GameObject sourceWeapon, Enemy __instance)
@@ -2034,7 +2038,7 @@ namespace Ultrarogue
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
             if (__instance.eid.blessed) return;
-
+            if (__instance.eid.enemyType == EnemyType.Idol || __instance.eid.enemyType == EnemyType.Deathcatcher) return;
             if(__instance.eid.TryGetComponent<BossArmor>(out var arm))
             {
                 multiplier = arm.CalculateDamage(multiplier);
@@ -2082,6 +2086,7 @@ namespace Ultrarogue
             if (!Plugin.isInRogueMode()) return;
             if (__instance.eid.dead) return;
             if (__instance.eid.blessed) return;
+            if (__instance.eid.enemyType == EnemyType.Idol || __instance.eid.enemyType == EnemyType.Deathcatcher) return;
             if (__instance.eid.TryGetComponent<BossArmor>(out var arm))
             {
                 multiplier = arm.CalculateDamage(multiplier);

@@ -135,13 +135,41 @@ public class Room : MonoBehaviour
     }
 
     bool isRedoooo;
+    private GameObject redoPortalObj;
+    private Vector3 redoPortalOriginalPos;
+
     public void RedoBoss()
     {
+        hasSpawnedEnemies = false;
         rewardGiven = false;
         isRedoooo = true;
-        hasSpawnedEnemies = false;
-        StartCoroutine(SpawnBoss());
+        StartCoroutine(RedoBossRoutine());
+    }
 
+    private IEnumerator RedoBossRoutine()
+    {
+        // Hide the already-spawned portal (if one exists) so it can't be
+        // walked into while the boss is being re-fought.
+        GameObject portalObj = GameObject.Find("PortalEntry");
+        if (portalObj != null)
+        {
+            redoPortalObj = portalObj;
+            redoPortalOriginalPos = portalObj.transform.position;
+            portalObj.transform.position = new Vector3(0f, 50000000000000f, 0f);
+        }
+        else
+        {
+            redoPortalObj = null;
+        }
+
+        yield return StartCoroutine(SpawnBoss());
+
+        // Redo fight is over — put the portal back where it was.
+        if (redoPortalObj != null)
+        {
+            redoPortalObj.transform.position = redoPortalOriginalPos;
+            redoPortalObj = null;
+        }
     }
 
     public void OnRoomEnter()
@@ -699,7 +727,7 @@ public class Room : MonoBehaviour
                             Destroy(eid.gameObject.GetComponent<BossHealthBar>());
                         eid.gameObject.AddComponent<BossHealthBar>();
                         SetHalfHealth(totalHealth / 2, eid);
-                        if (eid.enemyType == EnemyType.Gabriel || eid.enemyType == EnemyType.GabrielSecond)
+                        if (eid.enemyType == EnemyType.Gabriel || eid.enemyType == EnemyType.GabrielSecond || eid.enemyType == EnemyType.MinosPrime || eid.enemyType == EnemyType.SisyphusPrime)
                         {
                             eid.onDeath.AddListener(() =>
                             {

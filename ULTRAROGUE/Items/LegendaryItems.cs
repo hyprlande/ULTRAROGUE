@@ -56,6 +56,9 @@ namespace Ultrarogue.Items
                     case Rarity.Alchemy:
                         drop = DroptableType.Planetarium;
                         break;
+                    case Rarity.NullItem:
+                        drop = DroptableType.Planetarium;
+                        break;
                 }
 
                 BaseItem randomItem = Plugin.GiveRandomItem(RogueDifficultyManager.ItemRNG, drop);
@@ -187,6 +190,10 @@ namespace Ultrarogue.Items
 
                 // Clamp spacing to something sane — don't let it collapse toward zero
                 float zapSpacing = BaseSpacing * Mathf.Pow(SpacingDecayPerStack, stacks - 1);
+                if(__instance.hitterOverride == "Hitscan on hit")
+                {
+                    zapSpacing *= 2;
+                }
                 zapSpacing = Mathf.Max(zapSpacing, MinSpacing); // was 0.0001f
 
                 // Hard cap on total zap points regardless of distance/stacks
@@ -853,6 +860,11 @@ namespace Ultrarogue.Items
             }
         }
 
+        public static bool CanTarget(TargetDataRef data)
+        {
+            return data.target.EID.enemyType != EnemyType.Idol && data.target.EID.enemyType != EnemyType.Deathcatcher;
+        }
+
         public class GrenadeHoming : MonoBehaviour
         {
             Grenade grenade;
@@ -873,7 +885,7 @@ namespace Ultrarogue.Items
                     return;
                 }
 
-                this.visionQuery = new VisionQuery("GrenadeHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.visionQuery = new VisionQuery("GrenadeHomingSight", (TargetDataRef t) => t.target.isEnemy && CanTarget(t) && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
             TargetType.ENEMY
@@ -944,7 +956,7 @@ namespace Ultrarogue.Items
                     return;
                 }
 
-                this.visionQuery = new VisionQuery("RocketHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.visionQuery = new VisionQuery("RocketHomingSight", (TargetDataRef t) => t.target.isEnemy && CanTarget(t) && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
             TargetType.ENEMY
@@ -1014,7 +1026,7 @@ namespace Ultrarogue.Items
                     return;
                 }
 
-                this.visionQuery = new VisionQuery("NailHomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.visionQuery = new VisionQuery("NailHomingSight", (TargetDataRef t) => t.target.isEnemy && CanTarget(t) && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
             TargetType.ENEMY
@@ -1095,7 +1107,7 @@ namespace Ultrarogue.Items
                     Destroy(this);
                     return;
                 }
-                this.visionQuery = new VisionQuery("HomingSight", (TargetDataRef t) => t.target.isEnemy && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
+                this.visionQuery = new VisionQuery("HomingSight", (TargetDataRef t) => t.target.isEnemy && CanTarget(t) && !t.IsObstructed(transform.position, LayerMaskDefaults.Get(LMD.Environment), false));
                 this.vision = new Vision(base.transform.position, new VisionTypeFilter(new TargetType[]
                 {
                 TargetType.ENEMY
@@ -1174,7 +1186,7 @@ namespace Ultrarogue.Items
                 foreach (var col in hits)
                 {
                     var eii = col.GetComponentInParent<EnemyIdentifierIdentifier>();
-                    if (eii == null || eii.eid == null || eii.eid.dead) continue;
+                    if (eii == null || eii.eid == null || eii.eid.dead || eii.eid.enemyType == EnemyType.Idol || eii.eid.enemyType == EnemyType.Deathcatcher) continue;
 
                     Vector3 toTarget = col.transform.position - origin;
                     float alongForward = Vector3.Dot(toTarget, forward);

@@ -700,6 +700,8 @@ namespace Ultrarogue.Items
             $"{chance}% (+{chance}% per stack) to turn a projectile into a knife, " +
             $"Knives embed into enemies and makes them bleed.";
 
+        public override List<Plugin.Weapon> WeaponRequirements => new List<Plugin.Weapon>() { Plugin.Weapon.Shotgun };
+
         GameObject _knife;
         GameObject GetKnife()
         {

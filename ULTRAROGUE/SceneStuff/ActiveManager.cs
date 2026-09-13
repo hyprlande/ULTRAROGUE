@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SettingsMenu.Components.Pages;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using TMPro;
@@ -13,6 +14,8 @@ namespace Ultrarogue.SceneStuff
     public class ActiveManager : MonoSingleton<ActiveManager>
     {
         public Slider ChargeMeter;
+        public GameObject AltChargeMeter;
+        public Image AltChargeMeterMeter;
         public Image CurrentActiveItemImage;
 
         Dictionary<ActiveItem, int> charges = new Dictionary<ActiveItem, int>();
@@ -23,7 +26,7 @@ namespace Ultrarogue.SceneStuff
             charges[CurrentActive]++;
             if (ChargeMeter != null)
             {
-                ChargeMeter.value = charge + 1;
+                ApplyCharge(charge + 1);
             }
         }
 
@@ -45,9 +48,11 @@ namespace Ultrarogue.SceneStuff
 
                 if (ChargeMeter != null)
                 {
+
+
                     ChargeMeter.minValue = 0;
                     ChargeMeter.maxValue = _current.ChargeRequired;
-                    ChargeMeter.value = charges[value];
+                    ApplyCharge(charges[value]);
                 }
 
                 if(CurrentActiveItemImage != null)
@@ -55,10 +60,40 @@ namespace Ultrarogue.SceneStuff
                     CurrentActiveItemImage.sprite = value.ItemIcon;
                 }
 
-                ChargeMeter.gameObject.SetActive(true);
+                if (HUDSettings.weaponIconEnabled)
+                {
+
+                    ChargeMeter.gameObject.SetActive(true);
+                }
+                else
+                {
+                    AltChargeMeter.SetActive(true);
+                }
+
                 CurrentActiveItemImage.gameObject.SetActive(true);
             }
         }
+
+        public void ApplyCharge(int charge)
+        {
+            if (HUDSettings.weaponIconEnabled)
+            {
+                ChargeMeter.value = charge;
+            }
+            else
+            {
+                AltChargeMeterMeter.fillAmount = (float)charge / (float)_current.ChargeRequired;
+                if(AltChargeMeterMeter.fillAmount >= 0.99f)
+                {
+                    AltChargeMeterMeter.color = Color.cyan;
+                }
+                else
+                {
+                    AltChargeMeterMeter.color = Color.red;
+                }
+            }
+        }
+
         void Start()
         {
             CurrentActiveItemImage.GetComponentInChildren<TMP_Text>().text =
@@ -66,7 +101,6 @@ namespace Ultrarogue.SceneStuff
         }
         void Update()
         {
-
             if (CurrentActive == null) return;
             int charge = charges[CurrentActive];
             if (CurrentActive.ChargeRequired != charge)
@@ -83,7 +117,7 @@ namespace Ultrarogue.SceneStuff
                 CurrentActive?.OnUse();
                 if (ChargeMeter != null)
                 {
-                    ChargeMeter.value = 0;
+                    ApplyCharge(0);
                 }
             }
         }
