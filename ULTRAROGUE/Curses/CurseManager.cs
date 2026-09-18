@@ -35,6 +35,13 @@ namespace Ultrarogue.Curses
             return HasCurse(CurseList[curseName]);
         }
 
+        public static void ClearCurses()
+        {
+            if (ActiveCurse == null) return;
+            ActiveCurse.OnRemove();
+            ActiveCurse = null;
+        }
+
         public static void FloorEnter()
         {
             if (ActiveCurse == null) return;

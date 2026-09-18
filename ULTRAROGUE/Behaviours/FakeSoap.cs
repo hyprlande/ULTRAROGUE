@@ -16,14 +16,31 @@ public class FakeSoap : MonoBehaviour
     // Token: 0x06001DA1 RID: 7585 RVA: 0x000E844F File Offset: 0x000E664F
     private void FixedUpdate()
     {
+        itid.itemType = ItemType.None; // fix soap
+        if(TryGetComponent<Soap>(out var soap))
+        {
+            Destroy(soap); // Shit CANNOT HAVE SOAP
+        }
+
         if (this.rb)
         {
             this.velocityBeforeCollision = this.rb.velocity;
         }
     }
 
+    bool exploding = false;
+
+    void OnDestroy()
+    {
+        if(gameObject != null && !exploding)
+        {
+            FuckingExplode();
+        }
+    }
+
     public void FuckingExplode()
     {
+        exploding = true;
         Instantiate(explosion, transform.position, explosion.transform.rotation);
         Destroy(gameObject);
     }
@@ -66,7 +83,7 @@ public class FakeSoap : MonoBehaviour
         EnemyIdentifierIdentifier enemyIdentifierIdentifier;
         if (target.TryGetComponent<EnemyIdentifierIdentifier>(out enemyIdentifierIdentifier))
         {
-            enemyIdentifierIdentifier.eid.DeliverDamage(target, Vector3.zero, target.transform.position, 999999f, true, 0f, null, false, false);
+            FuckingExplode();
         }
     }
 

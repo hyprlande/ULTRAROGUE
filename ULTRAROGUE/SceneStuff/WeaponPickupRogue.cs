@@ -1,6 +1,10 @@
-﻿using System;
+﻿using Steamworks.Ugc;
+using System;
+using System.IO;
+using System.Reflection;
 using TMPro;
 using Ultrarogue.Characters;
+using Ultrarogue.Curses;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using static Ultrarogue.Plugin;
@@ -10,6 +14,33 @@ namespace Ultrarogue.SceneStuff
 {
     public class WeaponPickupRogue : MonoBehaviour
     {
+        Texture2D getBlindTexture
+        {
+            get
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+                string resourceName = $"Ultrarogue.ItemIcons.Unknown.png";
+
+                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null)
+                    {
+                        Debug.LogWarning($"[ItemIcon] Resource not found: {resourceName}");
+                        return null;
+                    }
+
+                    byte[] buffer = new byte[stream.Length];
+                    stream.Read(buffer, 0, buffer.Length);
+
+                    Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    texture.LoadImage(buffer);
+                    texture.filterMode = FilterMode.Point;
+                    texture.name = "Unknown";
+
+                    return texture;
+                }
+            }
+        }
         public AWeapon weapon;
         bool pickedUp = false;
         Func<bool> canPickup;
@@ -35,6 +66,13 @@ namespace Ultrarogue.SceneStuff
                 Plugin.AddWeapon(weapon);
                 Destroy(gameObject);
             }
+        }
+        public void BecomeBlind()
+        {
+            transform.localScale = Vector3.one * 3;
+            Material mat = new Material(AssetsManager.weaponMat);
+            mat.mainTexture = getBlindTexture;
+            gameObject.GetComponent<MeshRenderer>().material = mat;
         }
 
         // Returns true if the current character has the passive that makes all shop items purchasable.
@@ -150,6 +188,10 @@ namespace Ultrarogue.SceneStuff
 
             if (HasShoppingPassive())
                 AddShopPrefab(p, 2f);
+            if (CurseManager.HasCurse("Curse of The Blind"))
+            {
+                p.BecomeBlind();
+            }
         }
 
         public static void CreatePickupConditional(Transform position, Func<bool> pickupCon, float offset = 2, AWeapon weapon = null, bool isShop = false)
@@ -203,6 +245,10 @@ namespace Ultrarogue.SceneStuff
 
             if (HasShoppingPassive() && !isShop)
                 AddShopPrefab(pickup_component, offset);
+            if (CurseManager.HasCurse("Curse of The Blind"))
+            {
+                pickup_component.BecomeBlind();
+            }
         }
     }
 }

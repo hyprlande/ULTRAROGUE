@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using ULTRAKILL.Cheats;
 using ULTRAKILL.Portal;
 using ULTRAKILL.Portal.Geometry;
 using Ultrarogue;
@@ -334,7 +335,7 @@ public class RoomGenerator : MonoBehaviour
     /// required by its already-placed neighbours at <paramref name="gridPos"/>.
     /// </summary>
     bool PrefabFitsNeighbours(Room prefab, Vector2Int gridPos)
-    {
+    { 
         foreach (var dir in directions)
         {
             if (!placedRooms.ContainsKey(gridPos + dir)) continue;
@@ -686,6 +687,13 @@ public class RoomGenerator : MonoBehaviour
         {
             TryPlaceSpecialRoom(ref candidates, currentTheme.gamblingRoomPrefab);
         }
+
+        if(currentTheme.SecretRoomPrefabs.Count > 0)
+        {
+            Room RandomSecretRoom = currentTheme.SecretRoomPrefabs[RogueDifficultyManager.RoomRNG.Next(0, currentTheme.SecretRoomPrefabs.Count)];
+            TryPlaceSpecialRoom(ref candidates, RandomSecretRoom);
+        }
+
 
         if (RogueDifficultyManager.RoomRNG.NextDouble() <= planetChance && currentTheme.planetariumPrefab != null)
         {
@@ -1296,6 +1304,7 @@ public class RoomGenerator : MonoBehaviour
 
     void CheckOutOfBounds()
     {
+        
         var player = NewMovement.Instance;
         GameObject errorRoom = GameObject.Find("ErrorRoom");
         Vector2Int playerGrid = WorldToGrid(player.transform.position);
@@ -1315,15 +1324,20 @@ public class RoomGenerator : MonoBehaviour
         if (errorRoom != null)
         {
             float dist = Vector3.Distance(player.transform.position, errorRoom.transform.position);
-            var audio = errorRoom.GetComponentInChildren<AudioSource>(true);
-            audio.volume = dist <= ErrorRoomRadius ? 1 : 0;
+            var audio = errorRoom.GetComponentsInChildren<AudioSource>(true);
+            foreach (var item in audio)
+            {
+                item.volume = dist <= ErrorRoomRadius ? 1 : 0;
+            }
+
+
             if (dist <= ErrorRoomRadius) return false;
         }
 
         Vector2Int playerGrid = WorldToGrid(player.transform.position);
         if (placedRooms.ContainsKey(playerGrid)) return false;
         if (!canDoTheErrorRoom) return false;
-
+         
         return true;
     }
     IEnumerator TeleportPlayerToErrorRoom(NewMovement player, GameObject errorRoom = null)

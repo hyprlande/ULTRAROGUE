@@ -340,6 +340,7 @@ namespace Ultrarogue.Items
                         GameObject newProj = GameObject.Instantiate(splt.oldProj, proj.transform.position, Quaternion.identity);
                         Projectile projj = newProj.GetComponent<Projectile>();
                         projj.weaponType = "shotgun";
+                        newProj.transform.position += -proj.transform.forward;
 
                         // Random direction, but flipped into the hemisphere facing away from 'other'
                         Vector3 randomDir = Random.insideUnitSphere;
@@ -405,7 +406,7 @@ namespace Ultrarogue.Items
 
             MonoSingleton<RumbleManager>.Instance.SetVibrationTracked(
                 RumbleProperties.GunFireProjectiles, __instance.gameObject);
-
+            position += direction;
             // --- Fire ONE big, high-damage projectile instead of the pellet spread ---
             GameObject bulletObj = Object.Instantiate(
                 __instance.bullet, position, __instance.cam.transform.rotation);
@@ -417,6 +418,8 @@ namespace Ultrarogue.Items
             proj.sourceWeapon = __instance.gc.currentWeapon;
             proj.damage = 15;
 
+            if(__instance.variation == 1)
+                proj.damage += (2.5f * (__instance.primaryCharge + 1));
             if (__instance.targeter.CurrentTarget && __instance.targeter.IsAutoAimed)
             {
                 bulletObj.transform.LookAt(__instance.targeter.CurrentTargetAimPosition);

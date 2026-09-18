@@ -148,14 +148,15 @@ public class Room : MonoBehaviour
 
     private IEnumerator RedoBossRoutine()
     {
+
+        transform.Find("PortalPlace").gameObject.SetActive(true);
         // Hide the already-spawned portal (if one exists) so it can't be
         // walked into while the boss is being re-fought.
-        GameObject portalObj = GameObject.Find("PortalEntry");
-        if (portalObj != null)
+        if (portalExit != null)
         {
-            redoPortalObj = portalObj;
-            redoPortalOriginalPos = portalObj.transform.position;
-            portalObj.transform.position = new Vector3(0f, 50000000000000f, 0f);
+            redoPortalObj = portalExit;
+            redoPortalOriginalPos = portalExit.transform.position;
+            portalExit.transform.position = new Vector3(0f, 50000000000000f, 0f);
         }
         else
         {
@@ -164,6 +165,7 @@ public class Room : MonoBehaviour
 
         yield return StartCoroutine(SpawnBoss());
 
+        transform.Find("PortalPlace").gameObject.SetActive(false);
         // Redo fight is over — put the portal back where it was.
         if (redoPortalObj != null)
         {
@@ -1118,11 +1120,15 @@ public class Room : MonoBehaviour
         }
     }
 
+    GameObject portalExit = null;
+
     public void CreatePortal()
     {
         GameObject quad1 = new GameObject("PortalEntry");
         quad1.transform.position = GameObject.Find("PortalPlace").transform.position;
         quad1.transform.Rotate(90, 0, 0);
+
+        portalExit = quad1;
 
         GameObject quad2 = new GameObject("PortalExit");
         quad2.transform.position = GameObject.Find("PortalPos").transform.position;

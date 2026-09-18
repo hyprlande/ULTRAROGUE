@@ -185,6 +185,7 @@ namespace Ultrarogue
             characters.Add(new Ultrarogue.Characters.Filth());
             //characters.Add(new Ultrarogue.Characters.testcharacterthattestsoutwhichitemsandorweaponsworkinultrarogueasstartingitems());
 
+
 #if RUNTIME_ROOMS
             var genObj = new GameObject("DebugRoomGenerator");
             DontDestroyOnLoad(genObj);
@@ -319,6 +320,7 @@ namespace Ultrarogue
         };
         public static bool userHasIncomaptibleMods()
         {
+            return false; // spawner arms isnt incompatible no more more
             foreach (var key in Chainloader.PluginInfos.Keys)
                 Logger.LogInfo($"Loaded plugin GUID: {key}");
             foreach (string inmod in inComMods)
@@ -502,7 +504,7 @@ namespace Ultrarogue
             {
                 Transform cam = CameraController.Instance.transform;
 
-                Vector3 initPos = NewMovement.Instance.transform.position;
+                Vector3 initPos = NewMovement.Instance.transform.position; 
 
                 // Base position 3 units in front of the camera
                 Vector3 forwardOffset = cam.forward * 3f;
@@ -584,6 +586,8 @@ namespace Ultrarogue
             HandleBonk();
         }
         List<EnemyIdentifier> hits = new List<EnemyIdentifier>();
+
+
         void HandleBonk()
         {
             if (SelectedChar == null) return;
@@ -1807,7 +1811,7 @@ namespace Ultrarogue
             public static float ModifyRate(float amount)
             {
                 if (!isInRogueScene()) return amount;
-                return cooldownReduction.CalculateChanges(amount);
+                return AttackSpeed.CalculateChanges(amount);
             }
         }
         [HarmonyPatch(typeof(Revolver), nameof(Revolver.Shoot))]
@@ -1859,19 +1863,33 @@ namespace Ultrarogue
 
             }
         }
-        [HarmonyPatch(typeof(Nailgun), nameof(Nailgun.Update))]
-        public static class Nailgun_Update_Patch
+        [HarmonyPatch(typeof(Nailgun), nameof(Nailgun.FixedUpdate))]
+        public static class Nailgun_FixedUpdate_Patch
         {
-            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            static IEnumerable<CodeInstruction> Transpiler(
+                IEnumerable<CodeInstruction> instructions)
             {
-                var moveTowards = AccessTools.Method(typeof(Mathf), nameof(Mathf.MoveTowards));
-                var modify = AccessTools.Method(typeof(Nailgun_Update_Patch), nameof(ModifyDelta));
+                var moveTowards = AccessTools.Method(
+                    typeof(Mathf),
+                    nameof(Mathf.MoveTowards)
+                );
+
+                var modify = AccessTools.Method(
+                    typeof(Nailgun_FixedUpdate_Patch),
+                    nameof(ModifyDelta)
+                );
 
                 foreach (var instr in instructions)
                 {
-                    if (instr.opcode == OpCodes.Call && instr.operand as MethodInfo == moveTowards)
+                    if (instr.opcode == OpCodes.Call &&
+                        instr.operand is MethodInfo method &&
+                        method == moveTowards)
                     {
-                        yield return new CodeInstruction(OpCodes.Call, modify); // modifies top of stack
+                        // Stack at this point:
+                        // fireCooldown, 0f, deltaTime * 100f
+                        //
+                        // Modify the top value (maxDelta).
+                        yield return new CodeInstruction(OpCodes.Call, modify);
                         yield return instr;
                     }
                     else
@@ -1883,7 +1901,9 @@ namespace Ultrarogue
 
             public static float ModifyDelta(float maxDelta)
             {
-                if (!isInRogueScene()) return maxDelta;
+                if (!isInRogueScene())
+                    return maxDelta;
+
                 return AttackSpeed.CalculateChanges(maxDelta);
             }
         }
@@ -2125,6 +2145,39 @@ namespace Ultrarogue
         }
     }
 
+    // lambo
+
+    [HarmonyPatch(typeof(LimboSkybox))]
+    public static class LimboSkyboxPatch
+    {
+        public static float SkyboxScaleFactor = 16f;
+
+        /// <summary> Edits LimboSkybox.UpdateCamera to replace the hard coded scaling with our own custom thing :3 </summary>
+        [HarmonyTranspiler]
+        [HarmonyPatch("UpdateCamera")]
+        public static IEnumerable<CodeInstruction> UnhardCodeScaleFactor(IEnumerable<CodeInstruction> instructions)
+        {
+            FieldInfo skyboxScalerFactor = AccessTools.Field(typeof(LimboSkyboxPatch), "SkyboxScaleFactor");
+
+            foreach (CodeInstruction instruction in instructions)
+            {
+                // if instruction is loading a float(ldc.r4) with the value '16'
+                if (instruction.Is(OpCodes.Ldc_R4, 16f))
+                {
+                    // then change it to call `LimboSkyboxPatch.SkyboxScaleFactor`
+                    yield return new(OpCodes.Ldsfld, skyboxScalerFactor);
+
+                    // (since the only time a float with '16' is loaded, its for the scaler)
+                }
+                else
+                {
+                    // else, return the original instruction as no need to modify it
+                    yield return instruction;
+                }
+            }
+        }
+    }
+
 
     [HarmonyPatch]
     public class ProjectilePatches
@@ -2334,6 +2387,12 @@ namespace Ultrarogue
                     }, true),
                     CommandRoot.Leaf("nextstage", delegate ()
                     {
+                        NewMovement.Instance.transform.position = GameObject.Find("PortalPos").transform.position;
+                        RoomGenerator.Instance.RegenerateRooms();
+                    }, true),
+                    CommandRoot.Leaf<int>("tostage", (stage) =>
+                    {
+                        RogueDifficultyManager.Instance.floor = stage - 1;
                         NewMovement.Instance.transform.position = GameObject.Find("PortalPos").transform.position;
                         RoomGenerator.Instance.RegenerateRooms();
                     }, true),

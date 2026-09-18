@@ -33,6 +33,56 @@ namespace Ultrarogue.Items
             });
         }
     }
+
+    [HarmonyPatch]
+    public class SteadyMinigun : BaseItem
+    {
+        const float IncreasePerStack = 0.05f;
+        const float MaxIncreasePerStack = 1f;
+        static Change attackSpeedIncrease = new Change();
+        public override Rarity Rarity => Rarity.Uncommon;
+
+        public override string ItemName => "Accelerating Minigun";
+
+        public override string itemDescription => $"Holding Primary fire increases firerate by {IncreasePerStack * 100}% (+{IncreasePerStack * 100}% per stack) per second up to a maximum " +
+            $"of {MaxIncreasePerStack * 100}% (+{MaxIncreasePerStack * 100}%) Letting go or switching weapons resets this bonus.";
+
+        public override void OnStart()
+        {
+            base.OnStart();
+
+            new PlayerChange(attackSpeed: attackSpeedIncrease); // for increasing attackspeed on fire
+        }
+        public override void OnUpdate(int count)
+        {
+            base.OnUpdate(count);
+
+            if(count <= 0)
+            {
+                attackSpeedIncrease.percentage = 0;
+                return;
+            }
+
+            float increase = IncreasePerStack * count;
+            float maxIncrease = MaxIncreasePerStack * count;
+
+            if (InputManager.Instance.InputSource.Fire1.IsPressed)
+            {
+                if(attackSpeedIncrease.percentage < maxIncrease)
+                    attackSpeedIncrease.percentage += increase * Time.deltaTime;
+            }
+            else
+            {
+                attackSpeedIncrease.percentage = 0;
+            }
+        }
+
+        [HarmonyPatch(typeof(GunControl), nameof(GunControl.SwitchWeapon))]
+        public static void Postfix()
+        {
+            attackSpeedIncrease.percentage = 0;
+        }
+    }
     public class Nailsaw : BaseItem
     {
         const float chance = 5f;

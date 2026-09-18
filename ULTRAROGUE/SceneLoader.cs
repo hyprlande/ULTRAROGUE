@@ -14,6 +14,7 @@ using BepLogger = BepInEx.Logging.Logger;
 using Unity.AI.Navigation;
 using System.Collections.Generic;
 using Ultrarogue.Items;
+using Ultrarogue.Curses;
 
 /// <summary> Handles loading and accessing the empty scene. </summary>
 [HarmonyPatch]
@@ -268,6 +269,7 @@ public static class SceneLoader
     [HarmonyPrefix] [HarmonyPatch(typeof(SceneHelper), "LoadSceneCoroutine")]
     public static bool RedirectSceneHelperSceneLoader(ref IEnumerator __result, string sceneName, bool noSplash)
     {
+        CurseManager.ClearCurses();
         if (sceneName == SceneName)
         {
             Plugin.LoadLevel("", true);
