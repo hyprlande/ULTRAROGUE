@@ -284,14 +284,29 @@ namespace Ultrarogue
                 GameSeed = GenerateRandomString(6);
             else
                 GameSeed = seed;
-            SelectedChar.OnRunStart();
-            Reset();
+
 
             // save last selected character for restart functionality
             if (SelectedChar != null) LastSelectedCharacter = SelectedChar;
             else if (LastSelectedCharacter != null) SelectedChar = LastSelectedCharacter;
             else SelectedChar = characters[0];
 
+            // Restore time flow
+            if (MonoSingleton<TimeController>.Instance != null)
+            {
+                MonoSingleton<TimeController>.Instance.controlTimeScale = true;
+                MonoSingleton<TimeController>.Instance.timeScale = 1f;
+            }
+            Time.timeScale = 1f;
+
+            // Restore Audio system (gets disabled in RogueFinalRank)
+            if (MonoSingleton<AudioMixerController>.Instance != null)
+            {
+                MonoSingleton<AudioMixerController>.Instance.forceOff = false;
+            }
+
+            SelectedChar.OnRunStart();
+            Reset();
 
             if (SelectedChar.StartingWeapons == null || SelectedChar.StartingWeapons.Count == 0)
             {
@@ -498,6 +513,7 @@ namespace Ultrarogue
             normalJumpHeight = NewMovement.Instance.jumpPower;
         }
 
+        // Make restart button work
         [HarmonyPatch(typeof(OptionsManager), nameof(OptionsManager.RestartMission))]
         [HarmonyPrefix]
         public static bool OnRestart(OptionsManager __instance)
@@ -505,7 +521,6 @@ namespace Ultrarogue
             if (!isInRogueScene()) return true;
 
             __instance.UnPause();
-            Time.timeScale = 1f;
 
             if (SelectedChar == null && LastSelectedCharacter != null)
             {
