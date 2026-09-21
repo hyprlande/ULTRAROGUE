@@ -6,6 +6,7 @@ using System.Text;
 using TMPro;
 using Ultrarogue;
 using Ultrarogue.Characters;
+using Ultrarogue.Curses;
 using Ultrarogue.Items;
 using Ultrarogue.SceneStuff;
 using UnityEngine;
@@ -50,7 +51,7 @@ public class ItemPickup : MonoBehaviour
 
     public void BecomeBlind()
     {
-        Material mat = new Material(item.materialOverride ? item.materialOverride : AssetsManager.weaponMat);
+        Material mat = new Material(AssetsManager.weaponMat);
         mat.mainTexture = getBlindTexture;
         item.OnMaterialApply(mat);
         gameObject.GetComponent<MeshRenderer>().material = mat;
@@ -113,6 +114,10 @@ public class ItemPickup : MonoBehaviour
 
         t = delay; // 3 second delay before another pickup
         pickedUp = false;
+        if (CurseManager.HasCurse("Curse of The Blind"))
+        {
+            BecomeBlind();
+        }
     }
 
     public static GameObject ShopItemPrefab;
@@ -186,6 +191,11 @@ public class ItemPickup : MonoBehaviour
         p.t = delay;
         if (HasShoppingPassive() && !isShop)
             AddShopPrefab(p, offset);
+
+        if(CurseManager.HasCurse("Curse of The Blind"))
+        {
+            p.BecomeBlind();
+        }
     }
     public static void CreatePickupConditional(BaseItem item, Transform position, Func<bool> pickupCon, float offset = 3, bool isShop = false, float delay = 0)
     {
@@ -209,6 +219,10 @@ public class ItemPickup : MonoBehaviour
         pickup.GetComponent<ItemPickup>().t = delay;
         if (HasShoppingPassive() && !isShop)
             AddShopPrefab(pickup.GetComponent<ItemPickup>(), offset);
+        if (CurseManager.HasCurse("Curse of The Blind"))
+        {
+            pickup.GetComponent<ItemPickup>().BecomeBlind();
+        }
     }
 }
 public enum DroptableType
